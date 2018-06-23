@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 
-#Consider vectorizing with Numpy
-#Also consider using pypy
-
 import numpy
 import matplotlib.pyplot as plt
 from numba import jitclass, int64, float64
