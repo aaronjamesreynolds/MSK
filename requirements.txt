@@ -3,7 +3,7 @@
 pytest
 pytest-cov
 numpy
-yaml
+pyyaml
 matplotlib
 numba
 #
