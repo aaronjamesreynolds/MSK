@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+#To do:
+# edit to play nice with input.read classes
+# make suitable for single group problems
+
 import numpy
 import matplotlib.pyplot as plt
 from numba import jitclass, int64, float64
