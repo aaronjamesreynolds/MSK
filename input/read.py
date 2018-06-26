@@ -34,7 +34,7 @@ class InputDataYAML(yaml.YAMLObject):
                                                                                          self.sig_f, self.nu,
                                                                                          self.cells, self.material)
 
-if __name__ == '__main__':
-
-    test = Input("test_input.yaml")
-    print test.data
+# if __name__ == '__main__':
+#
+#     test = Input("test_input.yaml")
+#     print test.data
