@@ -111,16 +111,6 @@ class StepCharacteristic(object):
         self.flux_iterations = 0  # iteration counter
         self.source_iterations = 0  # iteration counter
 
-        # Form spatial matrix for in scatter from other groups.
-        self.form_scatter_source()
-
-        # Form fission sources for each group.
-        self.form_fission_source()
-        self.spatial_fission_old = self.spatial_fission_new
-
-        # Form combined source
-        self.Q = self.spatial_sig_s_out + self.spatial_fission_old / self.k_old
-
         # Implement initial angular fluxes conditions of 1 at cell edges.
         for k in xrange(self.groups):
             for j in [0, self.core_mesh_length]:
