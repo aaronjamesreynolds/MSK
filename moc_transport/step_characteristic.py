@@ -47,6 +47,8 @@ spec = [
     ('spatial_sig_s_out', float64[:])
 
 ]
+
+
 #@jitclass(spec)
 class StepCharacteristic(object):
 
@@ -79,11 +81,11 @@ class StepCharacteristic(object):
         self.dt = 0.01  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 1.0 # neutron velocity
+        self.alpha = -0.001 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 0.01*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
         self.flux_new = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
@@ -130,7 +132,7 @@ class StepCharacteristic(object):
             for x in xrange(len(self.ab)):
                 self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[i][x]
 
-    """ With given angular fluxesat the edge, calculate the scalar flux using a quadrature set. """
+    """ With given angular fluxes the edge, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_edge_flux(self):
 
         for i in xrange(self.core_mesh_length+1):
@@ -180,123 +182,69 @@ class StepCharacteristic(object):
                                                                          - self.angular_flux_edge[i + 1, z])
         for z in xrange(0, 5):
             for i in range(self.core_mesh_length, 0, -1):
-                xi = (self.sig_t[self.material[i-1]] + self.alpha[i-i] / self.v) / self.ab[z]  # integrating factor
+                xi = (self.sig_t[self.material[i-1]] + self.alpha[i-i] / self.v) / numpy.abs(self.ab[z])  # integrating factor
 
                 q = (self.sig_s[self.material[i-1]] * self.flux_old[i-1]
                      + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]]
                      + self.lambda_eff * self.delayed_neutron_precursor_concentration[i-1])  # source term
 
-                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(xi * self.dx) \
-                    + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(xi * self.dx))
+                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
+                    + (q / (2 * numpy.abs(self.ab[z]) * xi)) * (1 - numpy.exp(-xi * self.dx))
 
-                self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
+                self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * numpy.abs(self.ab[z]))
                                                                              - self.angular_flux_edge[i, z]
                                                                              + self.angular_flux_edge[i - 1, z])
 
         self.calculate_scalar_flux()
-        self.iterate_alpha()
+
+    def solve(self):
+        print "Performing method of characterisitics solve..."
+
+        while self.exit1 == 0:  # flux convergence
+
+            self.flux_iterations += 1
+            print self.flux_iterations
+            print self.alpha
+            print self.flux_old
+            self.flux_iteration()  # do a flux iteration
+
+            # Check for convergence
+            if abs(numpy.max(((self.flux_new[:] - self.flux_old[:]) / self.flux_new[:]))) < 1E-6:
+                self.exit1 = 1  # exit flux iteration
+                self.flux_old = self.flux_new # assign flux
+                print self.flux_old
+
+            else:
+                self.iterate_alpha()
+                self.flux_old = self.flux_new  # assign flux
+                self.flux_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+                self.iterate_boundary_condition()
 
 
-    #
-    # # With a given scalar flux, calculate a eigenvalue and source with a power iteration.
-    # def source_iteration(self):
-    #
-    #     # New eigenvalue.
-    #     self.k_new = self.k_old * numpy.sum(self.spatial_fission_new[0][:]) / numpy.sum(self.spatial_fission_old[0][:])
-    #
-    #     # New source.
-    #     self.Q = (self.spatial_sig_s_out + self.spatial_fission_new / self.k_new)
-    #
-    # # Using all the methods above, solve for an eigenvalue and flux with defined convergence criteria.
-    # def solve(self):
-    #     print "Performing method of characterisitics solve..."
-    #
-    #     while self.exit2 == 0:  # source convergence
-    #
-    #         self.source_iterations += 1
-    #
-    #         while self.exit1 == 0:  # flux convergence
-    #
-    #             self.flux_iterations += 1
-    #             self.flux_iteration()  # do a flux iteration
-    #
-    #             # Check for convergence
-    #             if abs(numpy.max(((self.flux_new[0][:] - self.flux_old[0][:]) / self.flux_new[0][:]))) < 1E-6 and abs(
-    #                     numpy.max(((self.flux_new[1][:] - self.flux_old[1][:]) / self.flux_new[1][:]))) < 1E-6:
-    #                 self.exit1 = 1  # exit flux iteration
-    #                 self.flux_old = self.flux_new # assign flux
-    #
-    #             else:
-    #                 self.flux_old = self.flux_new  # assign flux
-    #                 self.flux_new = numpy.zeros((self.groups, self.core_mesh_length), dtype=numpy.float64)  # reset new_flux
-    #                 self.assign_boundary_condition()
-    #
-    #         # Form scattering source.
-    #         self.form_scatter_source()
-    #
-    #         # Form fission source.
-    #         self.form_fission_source()
-    #
-    #         # Do a power iteration.
-    #         self.source_iteration()
-    #
-    #         # Check for convergence of new eigen value and fission source
-    #         if abs(self.k_new - self.k_old) / self.k_old < 1.0E-5 and numpy.max(
-    #                 self.spatial_fission_old[0][:] - self.spatial_fission_new[0][:]) < 1.0E-5:
-    #
-    #             self.exit2 = 1  # exit source iteration
-    #             self.calculate_eddington_factors()
-    #             self.flux_new = self.flux_new / (numpy.sum(self.flux_new)) # normalize flux
-    #             self.calculate_scalar_edge_flux()
-    #
-    #         else:
-    #
-    #             # Reassign parameters to iterate again.
-    #             self.k_old = self.k_new
-    #             self.spatial_sig_s_out = numpy.zeros((self.groups, self.core_mesh_length), dtype=numpy.float64)
-    #             self.flux_new = numpy.ones((self.groups, self.core_mesh_length), dtype=numpy.float64)
-    #             self.spatial_fission_old = self.spatial_fission_new
-    #             self.spatial_fission_new = numpy.zeros((self.groups, self.core_mesh_length), dtype=numpy.float64)
-    #             self.exit1 = 0  # reenter flux iteration loop.
-    #
-    # # Plot and display results.
-    # # Note: doesn't work with numba
-    # def results(self):
-    #
-    #     print 'Eigenvalue: {0}'.format(self.k_new)
-    #     print 'Source iterations: {0}'.format(self.source_iterations)
-    #     print 'Computation time: {:04.2f} seconds'.format(self.end - self.start)
-    #
-    #     x = numpy.arange(0.0, 20., 20.0 / 128.0)
-    #     plt.plot(x, self.flux_new[0][:])
-    #     plt.plot(x, self.flux_new[1][:])
-    #     plt.xlabel('Position [cm]')
-    #     plt.ylabel('Flux [s^-1 cm^-2]')
-    #     plt.title('Neutron Flux')
-    #     plt.show()
+
+
+    # Plot and display results.
+    # Note: doesn't work with numba
+    def results(self):
+
+        print 'Eigenvalue: {0}'.format(self.k_new)
+        print 'Source iterations: {0}'.format(self.source_iterations)
+
+        x = numpy.arange(0, self.core_mesh_length)
+        plt.plot(x, self.flux_new[:])
+        plt.xlabel('Position [cm]')
+        plt.ylabel('Flux [s^-1 cm^-2]')
+        plt.title('Neutron Flux')
+        plt.show()
 
 
 if __name__ == "__main__":
 
     test = StepCharacteristic("test_input.yaml")
     print test.material
-    print test.flux_new
-    print test.alpha
-    test.flux_iteration()
-    print test.flux_new
-    print test.alpha
-    test.iterate_boundary_condition()
-    test.flux_iteration()
-    print test.flux_new
-    print test.alpha
-    test.iterate_boundary_condition()
-    test.flux_iteration()
-    print test.flux_new
-    print test.alpha
-    test.iterate_boundary_condition()
-    test.flux_iteration()
-    print test.flux_new
-    print test.alpha
+    test.solve()
+    test.results()
+
 
 
 
