@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import input.read as read
 from numba import jitclass, int64, float64
 
+# Note: an initializing class may be necessary to accomodate the use of numba. Might be clumsy, but worth it.
+
 spec = [
     ('sig_t', float64[:]),
     ('sig_s_in', float64[:]),
@@ -51,6 +53,14 @@ class StepCharacteristic(object):
     # Initialize and assign variables.
     def __init__(self, input_file_name):
 
+        # Quadrature data
+        self.ab = numpy.array([-0.9739065285171717, -0.8650633666889845, -0.6794095682990244, -0.4333953941292472,
+                               -0.1488743389816312, 0.1488743389816312, 0.4333953941292472, 0.6794095682990244,
+                               0.8650633666889845, 0.9739065285171717], dtype=numpy.float64)
+        self.weights = numpy.array([0.0666713443086881, 0.1494513491505806, 0.2190863625159820, 0.2692667193099963,
+                                    0.2955242247147529, 0.2955242247147529, 0.2692667193099963, 0.2190863625159820,
+                                    0.1494513491505806, 0.0666713443086881], dtype=numpy.float64)
+
         # Import from YAML input file
         input_data = read.Input(input_file_name)
 
@@ -61,25 +71,18 @@ class StepCharacteristic(object):
         self.nu = input_data.data.nu  # number of neutrons produced per fission
         self.chi = [1.0, 1.0]  # probability of fission neutrons appearing in each group
 
-        # Alpha approximation parameters
-        self.alpha = 1.0 # describes change in scalar flux between time steps
-        self.v = 1.0 # neutron velocity
-        self.beta = 0.007 # delayed neutron fraction
-        self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-
-        # Quadrature data
-        self.ab = numpy.array([-0.9739065285171717, -0.8650633666889845, -0.6794095682990244, -0.4333953941292472,
-                               -0.1488743389816312, 0.1488743389816312, 0.4333953941292472, 0.6794095682990244,
-                               0.8650633666889845, 0.9739065285171717], dtype=numpy.float64)
-        self.weights = numpy.array([0.0666713443086881, 0.1494513491505806, 0.2190863625159820, 0.2692667193099963,
-                                    0.2955242247147529, 0.2955242247147529, 0.2692667193099963, 0.2190863625159820,
-                                    0.1494513491505806, 0.0666713443086881], dtype=numpy.float64)
-
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
         self.dx = 0.1  # discretization in length
-        self.dmu = 2 / len(self.ab) # discretization in angle
+        self.dmu = 2 / len(self.ab)  # discretization in angle
+        self.dt = 0.01  # discretization in time
+
+        # Alpha approximation parameters
+        self.alpha = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.v = 1.0 # neutron velocity
+        self.beta = 0.007 # delayed neutron fraction
+        self.lambda_eff = 0.08 # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
@@ -125,7 +128,7 @@ class StepCharacteristic(object):
 
         for i in xrange(self.core_mesh_length):
             for x in xrange(len(self.ab)):
-                self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[k][i][x]
+                self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[i][x]
 
     """ With given angular fluxesat the edge, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_edge_flux(self):
@@ -144,7 +147,7 @@ class StepCharacteristic(object):
                                                / self.flux_new[i]
 
     """ Reflects given angular fluxes at the boundary across the mu = 0 axis. """
-    def assign_boundary_condition(self):
+    def iterate_boundary_condition(self):
         # Redefine angular flux at boundaries.
         for j in xrange(0, self.core_mesh_length+1):
             for i in xrange(10):
@@ -153,11 +156,17 @@ class StepCharacteristic(object):
                 elif i + 1 > len(self.ab) / 2 and j == 0:
                     self.angular_flux_edge[j][i] = self.angular_flux_edge[j][len(self.ab) - i - 1]
 
-    # # Propagate angular flux boundary conditions across the problem.
+    """ Iterate on alpha based on old and new scalar flux """
+    def iterate_alpha(self):
+
+        for i in xrange(self.core_mesh_length):
+            self.alpha[i] = numpy.log(self.flux_new[i] / self.flux_old[i]) / self.dt
+
+    # Propagate angular flux boundary conditions across the problem.
     def flux_iteration(self):
         for z in xrange(5, 10):
             for i in xrange(self.core_mesh_length):
-                xi = (self.sig_t[self.material[i]] + self.alpha / self.v) / self.ab[z]  # integrating factor
+                xi = (self.sig_t[self.material[i]] + self.alpha[i] / self.v) / self.ab[z]  # integrating factor
 
                 q = (self.sig_s[self.material[i]] * self.flux_old[i]
                      + (1-self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]]
@@ -171,20 +180,23 @@ class StepCharacteristic(object):
                                                                          - self.angular_flux_edge[i + 1, z])
         for z in xrange(0, 5):
             for i in range(self.core_mesh_length, 0, -1):
-                xi = (self.sig_t[self.material[i-1]] + self.alpha / self.v) / self.ab[z]  # integrating factor
+                xi = (self.sig_t[self.material[i-1]] + self.alpha[i-i] / self.v) / self.ab[z]  # integrating factor
 
                 q = (self.sig_s[self.material[i-1]] * self.flux_old[i-1]
                      + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]]
                      + self.lambda_eff * self.delayed_neutron_precursor_concentration[i-1])  # source term
 
-                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
-                    + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
+                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(xi * self.dx) \
+                    + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(xi * self.dx))
 
-                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
-                                                                         - self.angular_flux_edge[i, z]
-                                                                         + self.angular_flux_edge[i - 1, z])
+                self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
+                                                                             - self.angular_flux_edge[i, z]
+                                                                             + self.angular_flux_edge[i - 1, z])
 
         self.calculate_scalar_flux()
+        self.iterate_alpha()
+
+
     #
     # # With a given scalar flux, calculate a eigenvalue and source with a power iteration.
     # def source_iteration(self):
@@ -268,6 +280,27 @@ if __name__ == "__main__":
 
     test = StepCharacteristic("test_input.yaml")
     print test.material
+    print test.flux_new
+    print test.alpha
+    test.flux_iteration()
+    print test.flux_new
+    print test.alpha
+    test.iterate_boundary_condition()
+    test.flux_iteration()
+    print test.flux_new
+    print test.alpha
+    test.iterate_boundary_condition()
+    test.flux_iteration()
+    print test.flux_new
+    print test.alpha
+    test.iterate_boundary_condition()
+    test.flux_iteration()
+    print test.flux_new
+    print test.alpha
+
+
+
+
 
 
 
