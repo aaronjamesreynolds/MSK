@@ -123,41 +123,39 @@ class StepCharacteristic(object):
                     elif i + 1 > len(self.ab) / 2 and j == 0:
                         self.angular_flux_edge[j][i] = 1
 
-
-    # With given angular fluxes at the center, calculate the scalar flux using a quadrature set.
+    """ With given angular fluxes at the center, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_flux(self):
 
-            for i in xrange(self.core_mesh_length):
-                for x in xrange(len(self.ab)):
-                    self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[k][i][x]
+        for i in xrange(self.core_mesh_length):
+            for x in xrange(len(self.ab)):
+                self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[k][i][x]
 
-    # With given angular fluxesat the edge, calculate the scalar flux using a quadrature set.
+    """ With given angular fluxesat the edge, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_edge_flux(self):
 
-            for i in xrange(self.core_mesh_length+1):
-                for x in xrange(len(self.ab)):
-                    self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i][x]
+        for i in xrange(self.core_mesh_length+1):
+            for x in xrange(len(self.ab)):
+                self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i][x]
 
-    # Calculates eddington factors (done a single time after problem is converged)
+    """ Calculates eddington factors (done a single time after problem is converged) """
     def calculate_eddington_factors(self):
 
-            for i in xrange(self.core_mesh_length):
-                for x in xrange(len(self.ab)):
-                    self.eddington_factors[i] = self.eddington_factors[i] + self.ab[x] ** 2 *\
-                                                   self.angular_flux_center[i][x] * self.weights[x]\
-                                                   / self.flux_new[i]
+        for i in xrange(self.core_mesh_length):
+            for x in xrange(len(self.ab)):
+                self.eddington_factors[i] = self.eddington_factors[i] + self.ab[x] ** 2 *\
+                                               self.angular_flux_center[i][x] * self.weights[x]\
+                                               / self.flux_new[i]
 
-    # # Reflects given angular fluxes at the boundary across the mu = 0 axis.
-    # def assign_boundary_condition(self):
-    #     # Redefine angular flux at boundaries.
-    #     for k in xrange(self.groups):
-    #         for j in xrange(0, self.core_mesh_length+1):
-    #             for i in xrange(10):
-    #                 if i + 1 <= len(self.ab) / 2 and j == self.core_mesh_length:
-    #                     self.angular_flux_edge[k][j][i] = self.angular_flux_edge[k][j][len(self.ab) - i - 1]
-    #                 elif i + 1 > len(self.ab) / 2 and j == 0:
-    #                     self.angular_flux_edge[k][j][i] = self.angular_flux_edge[k][j][len(self.ab) - i - 1]
-    #
+    """ Reflects given angular fluxes at the boundary across the mu = 0 axis. """
+    def assign_boundary_condition(self):
+        # Redefine angular flux at boundaries.
+        for j in xrange(0, self.core_mesh_length+1):
+            for i in xrange(10):
+                if i + 1 <= len(self.ab) / 2 and j == self.core_mesh_length:
+                    self.angular_flux_edge[k][j][i] = self.angular_flux_edge[k][j][len(self.ab) - i - 1]
+                elif i + 1 > len(self.ab) / 2 and j == 0:
+                    self.angular_flux_edge[k][j][i] = self.angular_flux_edge[k][j][len(self.ab) - i - 1]
+
     # # Propagate angular flux boundary conditions across the problem.
     # def flux_iteration(self):
     #     for k in xrange(self.groups):
