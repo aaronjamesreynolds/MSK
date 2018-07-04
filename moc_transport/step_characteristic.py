@@ -45,28 +45,20 @@ spec = [
     ('spatial_sig_s_out', float64[:])
 
 ]
-
-
-class InitializeStepCharacteristic:
-
-    def __init__(self, file_name):
-
-        self.tdh = read.Input(file_name)  # tdh is an acronym for temporary data holder
-        self.instance = StepCharacteristic(self.tdh.data.sig_t, self.tdh.data.sig_s, self.tdh.data.sig_f,
-                                           self.tdh.data.nu, self.tdh.data.cells, self.tdh.data.material)
-
-
 #@jitclass(spec)
 class StepCharacteristic(object):
 
     # Initialize and assign variables.
-    def __init__(self, sig_t, sig_s, sig_f, nu, cells, material):
+    def __init__(self, input_file_name):
+
+        # Import from YAML input file
+        input_data = read.Input(input_file_name)
 
         # Nuclear data
-        self.sig_t = sig_t  # total cross section
-        self.sig_s = sig_s  # scatter cross section
-        self.sig_f = sig_f  # fission cross section
-        self.nu = nu  # number of neutrons produced per fission
+        self.sig_t = input_data.data.sig_t  # total cross section
+        self.sig_s = input_data.data.sig_s  # scatter cross section
+        self.sig_f = input_data.data.sig_f  # fission cross section
+        self.nu = input_data.data.nu  # number of neutrons produced per fission
         self.chi = [1.0, 1.0]  # probability of fission neutrons appearing in each group
 
         # Quadrature data
@@ -79,7 +71,7 @@ class StepCharacteristic(object):
 
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
-        self.core_mesh_length = cells  # number of intervals
+        self.core_mesh_length = input_data.data.cells  # number of intervals
         self.dx = 0.1  # discretization in length
         self.dmu = 2 / len(self.ab) # discretization in angle
 
@@ -103,7 +95,7 @@ class StepCharacteristic(object):
                                                dtype=numpy.float64)  # initialize fission source
         self.spatial_fission_new = numpy.zeros(self.core_mesh_length,
                                                dtype=numpy.float64)  # initialize fission source
-        self.material = material  # material map
+        self.material = input_data.data.material  # material map
         self.fission_source_dx = 0.0
 
         # Solver metrics
@@ -122,14 +114,14 @@ class StepCharacteristic(object):
         # Form combined source
         self.Q = self.spatial_sig_s_out + self.spatial_fission_old / self.k_old
 
-        # Implement initial angular fluxes conditions at cell edges.
+        # Implement initial angular fluxes conditions of 1 at cell edges.
         for k in xrange(self.groups):
             for j in [0, self.core_mesh_length]:
                 for i in xrange(10):
                     if i + 1 <= len(self.ab) / 2 and j == self.core_mesh_length:
-                        self.angular_flux_edge[j][i] = self.phi_R_old[i]
+                        self.angular_flux_edge[j][i] = 1
                     elif i + 1 > len(self.ab) / 2 and j == 0:
-                        self.angular_flux_edge[j][i] = self.phi_L_old[i - 5]
+                        self.angular_flux_edge[j][i] = 1
 
     # With a given flux, the source from scattering is calculated.
     def form_scatter_source(self):
@@ -305,7 +297,8 @@ class StepCharacteristic(object):
 
 if __name__ == "__main__":
 
-    test = InitializeStepCharacteristic("test_input.yaml")
+    test = StepCharacteristic("test_input.yaml")
+    print test.material
 
 
 
