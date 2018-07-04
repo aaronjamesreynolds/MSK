@@ -64,6 +64,8 @@ class StepCharacteristic(object):
         # Alpha approximation parameters
         self.alpha = 1.0 # describes change in scalar flux between time steps
         self.v = 1.0 # neutron velocity
+        self.beta = 0.007 # delayed neutron fraction
+        self.lambda_eff = 0.08 # delayed neutron precursor decay constant
 
         # Quadrature data
         self.ab = numpy.array([-0.9739065285171717, -0.8650633666889845, -0.6794095682990244, -0.4333953941292472,
@@ -78,6 +80,7 @@ class StepCharacteristic(object):
         self.core_mesh_length = input_data.data.cells  # number of intervals
         self.dx = 0.1  # discretization in length
         self.dmu = 2 / len(self.ab) # discretization in angle
+        self.delayed_neutron_precursor_concentration = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
         self.flux_new = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
@@ -164,18 +167,18 @@ class StepCharacteristic(object):
     def flux_iteration(self):
             for z in xrange(5, 10):
                 for i in xrange(self.core_mesh_length):
-                    xi = (self.sig_t[self.material[i]] + self.alpha / self.v) / self.ab[z]
-                    self.angular_flux_edge[i + 1][z] = self.angular_flux_edge[i][z] * numpy.exp(
-                        -self.sig_t[self.material[i]] * self.dx / abs(self.ab[z]))
+                    xi = (self.sig_t[self.material[i]] + self.alpha / self.v) / self.ab[z] # integrating factor
 
-                    n = 0.5 * self.dx * self.sig_s[self.material[i]] * self.flux_old[i] + 0.5 * self.Q[
-                        i] - self.ab[z] * (
-                                self.angular_flux_edge[i + 1][z] - self.angular_flux_edge[i][z])
+                    q = (self.sig_s[self.material[i]] * self.flux_old[i]
+                    + (1-self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]]
+                    + self.lambda_eff * self.delayed_neutron_precursor_concentration)  # source term
 
-                    d = self.sig_t[self.material[i]] * self.dx
+                    self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
+                    + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
 
-                    self.angular_flux_center[i][z] = n / d
-
+                    self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
+                                                                             + self.angular_flux_edge[i, z]
+                                                                             - self.angular_flux_edge[i + 1, z])
             for z in xrange(0, 5):
                 for i in range(self.core_mesh_length, 0, -1):
                     self.angular_flux_edge[i - 1][z] = self.angular_flux_edge[i][z] * numpy.exp(
