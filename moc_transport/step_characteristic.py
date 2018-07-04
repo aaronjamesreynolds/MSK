@@ -165,38 +165,34 @@ class StepCharacteristic(object):
 
     # # Propagate angular flux boundary conditions across the problem.
     def flux_iteration(self):
-            for z in xrange(5, 10):
-                for i in xrange(self.core_mesh_length):
-                    xi = (self.sig_t[self.material[i]] + self.alpha / self.v) / self.ab[z] # integrating factor
+        for z in xrange(5, 10):
+            for i in xrange(self.core_mesh_length):
+                xi = (self.sig_t[self.material[i]] + self.alpha / self.v) / self.ab[z]  # integrating factor
 
-                    q = (self.sig_s[self.material[i]] * self.flux_old[i]
-                    + (1-self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]]
-                    + self.lambda_eff * self.delayed_neutron_precursor_concentration)  # source term
+                q = (self.sig_s[self.material[i]] * self.flux_old[i]
+                     + (1-self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]]
+                     + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])  # source term
 
-                    self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
+                self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
                     + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
 
-                    self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
-                                                                             + self.angular_flux_edge[i, z]
-                                                                             - self.angular_flux_edge[i + 1, z])
-            for z in xrange(0, 5):
-                for i in range(self.core_mesh_length, 0, -1):
-                    self.angular_flux_edge[i - 1][z] = self.angular_flux_edge[i][z] * numpy.exp(
-                        -self.sig_t[self.material[i - 1]] * self.dx / abs(self.ab[z])) + (
-                                                                  (self.dx * self.sig_s_in[
-                                                                      self.material[i - 1]] * self.flux_old[
-                                                                       i - 1] + self.Q[i - 1]) / (
-                                                                          2 * self.dx * self.sig_t[
-                                                                      self.material[i - 1]])) * (1 - numpy.exp(
-                        -self.sig_t[self.material[i - 1]] * self.dx / abs(self.ab[z])))
+                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
+                                                                         + self.angular_flux_edge[i, z]
+                                                                         - self.angular_flux_edge[i + 1, z])
+        for z in xrange(0, 5):
+            for i in range(self.core_mesh_length, 0, -1):
+                xi = (self.sig_t[self.material[i-1]] + self.alpha / self.v) / self.ab[z]  # integrating factor
 
-                    n = 0.5 * self.dx * self.sig_s_in[k][self.material[i - 1]] * self.flux_old[k][i - 1] + 0.5 * \
-                        self.Q[k][i - 1] - \
-                        self.ab[z] * (self.angular_flux_edge[k][i][z] - self.angular_flux_edge[k][i - 1][z])
+                q = (self.sig_s[self.material[i-1]] * self.flux_old[i-1]
+                     + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]]
+                     + self.lambda_eff * self.delayed_neutron_precursor_concentration[i-1])  # source term
 
-                    d = self.sig_t[k][self.material[i - 1]] * self.dx
+                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
+                    + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
 
-                    self.angular_flux_center[k][i - 1][z] = n / d
+                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
+                                                                         - self.angular_flux_edge[i, z]
+                                                                         + self.angular_flux_edge[i - 1, z])
 
         self.calculate_scalar_flux()
     #
