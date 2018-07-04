@@ -124,21 +124,19 @@ class StepCharacteristic(object):
                         self.angular_flux_edge[j][i] = 1
 
 
-    # # With given angular fluxes, calculate the scalar flux using a quadrature set.
-    # def calculate_scalar_flux(self):
-    #
-    #     for k in xrange(self.groups):
-    #         for i in xrange(self.core_mesh_length):
-    #             for x in xrange(len(self.ab)):
-    #                 self.flux_new[k][i] = self.flux_new[k][i] + self.weights[x] * self.angular_flux_center[k][i][x]
-    #
-    # def calculate_scalar_edge_flux(self):
-    #
-    #     for k in xrange(self.groups):
-    #         for i in xrange(self.core_mesh_length+1):
-    #             for x in xrange(len(self.ab)):
-    #                 self.edge_flux[k][i] = self.edge_flux[k][i] + self.weights[x] * self.angular_flux_edge[k][i][x]
-    #
+    # With given angular fluxes, calculate the scalar flux using a quadrature set.
+    def calculate_scalar_flux(self):
+
+            for i in xrange(self.core_mesh_length):
+                for x in xrange(len(self.ab)):
+                    self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[k][i][x]
+
+    def calculate_scalar_edge_flux(self):
+
+            for i in xrange(self.core_mesh_length+1):
+                for x in xrange(len(self.ab)):
+                    self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i][x]
+
     # def calculate_eddington_factors(self):
     #
     #     for k in xrange(self.groups):
