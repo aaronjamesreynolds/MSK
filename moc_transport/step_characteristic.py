@@ -138,7 +138,7 @@ class StepCharacteristic(object):
                 for x in xrange(len(self.ab)):
                     self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i][x]
 
-    # Calculates eddington factors (only done once after problem is converged)
+    # Calculates eddington factors (done a single time after problem is converged)
     def calculate_eddington_factors(self):
 
             for i in xrange(self.core_mesh_length):
