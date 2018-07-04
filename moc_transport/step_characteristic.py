@@ -61,6 +61,10 @@ class StepCharacteristic(object):
         self.nu = input_data.data.nu  # number of neutrons produced per fission
         self.chi = [1.0, 1.0]  # probability of fission neutrons appearing in each group
 
+        # Alpha approximation parameters
+        self.alpha = 1.0 # describes change in scalar flux between time steps
+        self.v = 1.0 # neutron velocity
+
         # Quadrature data
         self.ab = numpy.array([-0.9739065285171717, -0.8650633666889845, -0.6794095682990244, -0.4333953941292472,
                                -0.1488743389816312, 0.1488743389816312, 0.4333953941292472, 0.6794095682990244,
@@ -157,46 +161,41 @@ class StepCharacteristic(object):
                     self.angular_flux_edge[j][i] = self.angular_flux_edge[j][len(self.ab) - i - 1]
 
     # # Propagate angular flux boundary conditions across the problem.
-    # def flux_iteration(self):
-    #     for k in xrange(self.groups):
-    #         for z in xrange(5, 10):
-    #             for i in xrange(self.core_mesh_length):
-    #                 self.angular_flux_edge[i + 1][z] = self.angular_flux_edge[i][z] * numpy.exp(
-    #                     -self.sig_t[self.material[i]] * self.dx / abs(self.ab[z])) + ((
-    #                         self.dx * self.sig_s_in[k][self.material[i]] * self.flux_old[k][i] + self.Q[k][i])) / (
-    #                                                               2 * self.dx * self.sig_t[k][self.material[i]]) * (
-    #                                                               1 - numpy.exp(
-    #                                                           - self.sig_t[k][self.material[i]] * self.dx / abs(
-    #                                                               self.ab[z])))
-    #
-    #                 n = 0.5 * self.dx * self.sig_s_in[k][self.material[i]] * self.flux_old[k][i] + 0.5 * self.Q[k][
-    #                     i] - self.ab[z] * (
-    #                             self.angular_flux_edge[k][i + 1][z] - self.angular_flux_edge[k][i][z])
-    #
-    #                 d = self.sig_t[k][self.material[i]] * self.dx
-    #
-    #                 self.angular_flux_center[k][i][z] = n / d
-    #
-    #         for z in xrange(0, 5):
-    #             for i in range(self.core_mesh_length, 0, -1):
-    #                 self.angular_flux_edge[k][i - 1][z] = self.angular_flux_edge[k][i][z] * numpy.exp(
-    #                     -self.sig_t[k][self.material[i - 1]] * self.dx / abs(self.ab[z])) + (
-    #                                                               (self.dx * self.sig_s_in[k][
-    #                                                                   self.material[i - 1]] * self.flux_old[k][
-    #                                                                    i - 1] + self.Q[k][i - 1]) / (
-    #                                                                       2 * self.dx * self.sig_t[k][
-    #                                                                   self.material[i - 1]])) * (1 - numpy.exp(
-    #                     -self.sig_t[k][self.material[i - 1]] * self.dx / abs(self.ab[z])))
-    #
-    #                 n = 0.5 * self.dx * self.sig_s_in[k][self.material[i - 1]] * self.flux_old[k][i - 1] + 0.5 * \
-    #                     self.Q[k][i - 1] - \
-    #                     self.ab[z] * (self.angular_flux_edge[k][i][z] - self.angular_flux_edge[k][i - 1][z])
-    #
-    #                 d = self.sig_t[k][self.material[i - 1]] * self.dx
-    #
-    #                 self.angular_flux_center[k][i - 1][z] = n / d
-    #
-    #     self.calculate_scalar_flux()
+    def flux_iteration(self):
+            for z in xrange(5, 10):
+                for i in xrange(self.core_mesh_length):
+                    xi = (self.sig_t[self.material[i]] + self.alpha / self.v) / self.ab[z]
+                    self.angular_flux_edge[i + 1][z] = self.angular_flux_edge[i][z] * numpy.exp(
+                        -self.sig_t[self.material[i]] * self.dx / abs(self.ab[z]))
+
+                    n = 0.5 * self.dx * self.sig_s[self.material[i]] * self.flux_old[i] + 0.5 * self.Q[
+                        i] - self.ab[z] * (
+                                self.angular_flux_edge[i + 1][z] - self.angular_flux_edge[i][z])
+
+                    d = self.sig_t[self.material[i]] * self.dx
+
+                    self.angular_flux_center[i][z] = n / d
+
+            for z in xrange(0, 5):
+                for i in range(self.core_mesh_length, 0, -1):
+                    self.angular_flux_edge[i - 1][z] = self.angular_flux_edge[i][z] * numpy.exp(
+                        -self.sig_t[self.material[i - 1]] * self.dx / abs(self.ab[z])) + (
+                                                                  (self.dx * self.sig_s_in[
+                                                                      self.material[i - 1]] * self.flux_old[
+                                                                       i - 1] + self.Q[i - 1]) / (
+                                                                          2 * self.dx * self.sig_t[
+                                                                      self.material[i - 1]])) * (1 - numpy.exp(
+                        -self.sig_t[self.material[i - 1]] * self.dx / abs(self.ab[z])))
+
+                    n = 0.5 * self.dx * self.sig_s_in[k][self.material[i - 1]] * self.flux_old[k][i - 1] + 0.5 * \
+                        self.Q[k][i - 1] - \
+                        self.ab[z] * (self.angular_flux_edge[k][i][z] - self.angular_flux_edge[k][i - 1][z])
+
+                    d = self.sig_t[k][self.material[i - 1]] * self.dx
+
+                    self.angular_flux_center[k][i - 1][z] = n / d
+
+        self.calculate_scalar_flux()
     #
     # # With a given scalar flux, calculate a eigenvalue and source with a power iteration.
     # def source_iteration(self):
