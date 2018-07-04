@@ -152,9 +152,9 @@ class StepCharacteristic(object):
         for j in xrange(0, self.core_mesh_length+1):
             for i in xrange(10):
                 if i + 1 <= len(self.ab) / 2 and j == self.core_mesh_length:
-                    self.angular_flux_edge[k][j][i] = self.angular_flux_edge[k][j][len(self.ab) - i - 1]
+                    self.angular_flux_edge[j][i] = self.angular_flux_edge[j][len(self.ab) - i - 1]
                 elif i + 1 > len(self.ab) / 2 and j == 0:
-                    self.angular_flux_edge[k][j][i] = self.angular_flux_edge[k][j][len(self.ab) - i - 1]
+                    self.angular_flux_edge[j][i] = self.angular_flux_edge[j][len(self.ab) - i - 1]
 
     # # Propagate angular flux boundary conditions across the problem.
     # def flux_iteration(self):
