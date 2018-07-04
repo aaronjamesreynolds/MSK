@@ -123,22 +123,6 @@ class StepCharacteristic(object):
                     elif i + 1 > len(self.ab) / 2 and j == 0:
                         self.angular_flux_edge[j][i] = 1
 
-    # With a given flux, the source from scattering is calculated.
-    def form_scatter_source(self):
-        # Form scattering source.
-        self.spatial_sig_s_out = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
-        for i in xrange(self.core_mesh_length):
-            self.spatial_sig_s_out[i] = self.dx * self.flux_old[i] * self.sig_s[self.material[i]]
-
-    # With a given flux, the source from fission is calculated.
-    def form_fission_source(self):
-        # Form fission source.
-        self.spatial_fission_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
-        for i in xrange(self.core_mesh_length):
-            self.fission_source_dx = self.dx * self.flux_old[i] * self.nu[
-                self.material[i]] * self.sig_f[self.material[i]]
-            self.spatial_fission_new[i] = self.spatial_fission_new[i] + self.fission_source_dx
-
 
     # # With given angular fluxes, calculate the scalar flux using a quadrature set.
     # def calculate_scalar_flux(self):
