@@ -204,7 +204,6 @@ class StepCharacteristic(object):
             # print "Flux_old: {}".format(self.flux_old)
             # print "-------------------------------------------"
 
-
             self.flux_iteration()  # do a flux iteration
             self.flux_new = self.flux_new / numpy.sum(self.flux_new)
             # Check for convergence
@@ -216,14 +215,13 @@ class StepCharacteristic(object):
 
             else:
                 self.flux_old = self.flux_new  # assign flux
-                #self.flux_old = self.flux_new / numpy.sum(self.flux_new)
                 self.flux_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
 
     """Plot scalar and angular fluxes."""
     def results(self):
 
-        print 'Source iterations: {0}'.format(self.source_iterations)
+        print 'Flux iterations: {0}'.format(self.flux_iterations)
         # plot scalar flux
         x = numpy.arange(0, self.core_mesh_length)
         plt.plot(x, self.flux_new[:])
