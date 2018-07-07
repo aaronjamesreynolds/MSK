@@ -10,6 +10,7 @@ import input.read as read
 from numba import jitclass, int64, float64
 
 # Note: an initializing class may be necessary to accomodate the use of numba. Might be clumsy, but worth it.
+# Investigate: last alpha value is getting very small.
 
 spec = [
     ('sig_t', float64[:]),
@@ -71,43 +72,31 @@ class StepCharacteristic(object):
         self.sig_s = input_data.data.sig_s  # scatter cross section
         self.sig_f = input_data.data.sig_f  # fission cross section
         self.nu = input_data.data.nu  # number of neutrons produced per fission
-        self.chi = [1.0, 1.0]  # probability of fission neutrons appearing in each group
+        self.material = input_data.data.material  # material map
 
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        self.dx = 0.1  # discretization in length
+        self.dx = 1.0  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
-        self.dt = 0.01  # discretization in time
+        self.dt = 0.1  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = -0.001 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 0.1 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 0.01*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux_new = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
+        self.flux_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
         self.flux_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
-        self.phi_L_old = numpy.ones( len(self.ab) / 2,
-                                    dtype=numpy.float64)  # initialize left boundary condition
-        self.phi_R_old = numpy.ones(len(self.ab) / 2,
-                                    dtype=numpy.float64)  # initialize right boundary condition
         self.angular_flux_edge = numpy.zeros((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge flux
         self.angular_flux_center = numpy.zeros((self.core_mesh_length, len(self.ab)),
                                                dtype=numpy.float64)  # initialize edge flux
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
-        self.k_old = 1.0  # initialize eigenvalue
-        self.k_new = 1.0  # initialize eigenvalue
-        self.spatial_sig_s_out = numpy.zeros(self.core_mesh_length,dtype=numpy.float64)
-        self.spatial_fission_old = numpy.zeros(self.core_mesh_length,
-                                               dtype=numpy.float64)  # initialize fission source
-        self.spatial_fission_new = numpy.zeros(self.core_mesh_length,
-                                               dtype=numpy.float64)  # initialize fission source
-        self.material = input_data.data.material  # material map
         self.fission_source_dx = 0.0
 
         # Solver metrics
@@ -154,9 +143,9 @@ class StepCharacteristic(object):
         for j in xrange(0, self.core_mesh_length+1):
             for i in xrange(10):
                 if i + 1 <= len(self.ab) / 2 and j == self.core_mesh_length:
-                    self.angular_flux_edge[j][i] = self.angular_flux_edge[j][len(self.ab) - i - 1]
+                    self.angular_flux_edge[j, i] = self.angular_flux_edge[j, len(self.ab) - i - 1]
                 elif i + 1 > len(self.ab) / 2 and j == 0:
-                    self.angular_flux_edge[j][i] = self.angular_flux_edge[j][len(self.ab) - i - 1]
+                    self.angular_flux_edge[j, i] = self.angular_flux_edge[j, len(self.ab) - i - 1]
 
     """ Iterate on alpha based on old and new scalar flux """
     def iterate_alpha(self):
@@ -170,8 +159,11 @@ class StepCharacteristic(object):
             for i in xrange(self.core_mesh_length):
                 xi = (self.sig_t[self.material[i]] + self.alpha[i] / self.v) / self.ab[z]  # integrating factor
 
+                if xi < 10**-4:
+                    xi = 10**-4 / self.ab[z]
+
                 q = (self.sig_s[self.material[i]] * self.flux_old[i]
-                     + (1-self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]]
+                     + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux_old[i]
                      + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])  # source term
 
                 self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
@@ -184,16 +176,19 @@ class StepCharacteristic(object):
             for i in range(self.core_mesh_length, 0, -1):
                 xi = (self.sig_t[self.material[i-1]] + self.alpha[i-i] / self.v) / numpy.abs(self.ab[z])  # integrating factor
 
+                if xi < 10**-4:
+                    xi = 10**-4 / numpy.abs(self.ab[z])
+
                 q = (self.sig_s[self.material[i-1]] * self.flux_old[i-1]
-                     + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]]
+                     + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]] * self.flux_old[i - 1]
                      + self.lambda_eff * self.delayed_neutron_precursor_concentration[i-1])  # source term
 
                 self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
                     + (q / (2 * numpy.abs(self.ab[z]) * xi)) * (1 - numpy.exp(-xi * self.dx))
 
                 self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * numpy.abs(self.ab[z]))
-                                                                             - self.angular_flux_edge[i, z]
-                                                                             + self.angular_flux_edge[i - 1, z])
+                                                                             + self.angular_flux_edge[i, z]
+                                                                              - self.angular_flux_edge[i - 1, z])
 
         self.calculate_scalar_flux()
 
@@ -203,39 +198,51 @@ class StepCharacteristic(object):
         while self.exit1 == 0:  # flux convergence
 
             self.flux_iterations += 1
-            print self.flux_iterations
-            print self.alpha
-            print self.flux_old
-            self.flux_iteration()  # do a flux iteration
 
+            # print "----------------DEBUG----------------------"
+            # print "Iteration: {}".format(self.flux_iterations)
+            # print "Alpha: {}".format(self.alpha)
+            # print "Flux_old: {}".format(self.flux_old)
+            # print "-------------------------------------------"
+
+
+            self.flux_iteration()  # do a flux iteration
+            self.flux_new = self.flux_new / numpy.sum(self.flux_new)
             # Check for convergence
             if abs(numpy.max(((self.flux_new[:] - self.flux_old[:]) / self.flux_new[:]))) < 1E-6:
                 self.exit1 = 1  # exit flux iteration
                 self.flux_old = self.flux_new # assign flux
                 print self.flux_old
+                self.results()
 
             else:
-                self.iterate_alpha()
                 self.flux_old = self.flux_new  # assign flux
+                #self.flux_old = self.flux_new / numpy.sum(self.flux_new)
                 self.flux_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
 
-
-
-
-    # Plot and display results.
-    # Note: doesn't work with numba
+    """Plot scalar and angular fluxes."""
     def results(self):
 
-        print 'Eigenvalue: {0}'.format(self.k_new)
         print 'Source iterations: {0}'.format(self.source_iterations)
-
+        # plot scalar flux
         x = numpy.arange(0, self.core_mesh_length)
         plt.plot(x, self.flux_new[:])
+        plt.grid(True)
         plt.xlabel('Position [cm]')
         plt.ylabel('Flux [s^-1 cm^-2]')
         plt.title('Neutron Flux')
         plt.show()
+        # plot angular flux
+        for i in xrange(10):
+            plt.plot(x, self.angular_flux_center[:, i])
+        plt.grid(True)
+        plt.xlabel('Position [cm]')
+        plt.ylabel('Flux [s^-1 cm^-2]')
+        plt.title('Angular Neutron Flux')
+        plt.show()
+
+
 
 
 if __name__ == "__main__":
@@ -243,8 +250,6 @@ if __name__ == "__main__":
     test = StepCharacteristic("test_input.yaml")
     print test.material
     test.solve()
-    test.results()
-
 
 
 
