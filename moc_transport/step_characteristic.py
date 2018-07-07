@@ -10,7 +10,6 @@ import input.read as read
 from numba import jitclass, int64, float64
 
 # Note: an initializing class may be necessary to accomodate the use of numba. Might be clumsy, but worth it.
-# Investigate: last alpha value is getting very small.
 
 spec = [
     ('sig_t', float64[:]),
