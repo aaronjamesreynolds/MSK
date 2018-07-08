@@ -88,8 +88,8 @@ class StepCharacteristic(object):
         self.delayed_neutron_precursor_concentration = 1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
-        self.flux_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
+        self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        #self.flux_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = numpy.zeros((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge flux
@@ -118,7 +118,7 @@ class StepCharacteristic(object):
 
         for i in xrange(self.core_mesh_length):
             for x in xrange(len(self.ab)):
-                self.flux_new[i] = self.flux_new[i] + self.weights[x] * self.angular_flux_center[i][x]
+                self.flux[i, 0] = self.flux[i, 0] + self.weights[x] * self.angular_flux_center[i, x]
 
     """ With given angular fluxes the edge, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_edge_flux(self):
@@ -134,7 +134,7 @@ class StepCharacteristic(object):
             for x in xrange(len(self.ab)):
                 self.eddington_factors[i] = self.eddington_factors[i] + self.ab[x] ** 2 *\
                                                self.angular_flux_center[i][x] * self.weights[x]\
-                                               / self.flux_new[i]
+                                               / self.flux[i, 0]
 
     """ Reflects given angular fluxes at the boundary across the mu = 0 axis. """
     def iterate_boundary_condition(self):
@@ -150,7 +150,7 @@ class StepCharacteristic(object):
     def iterate_alpha(self):
 
         for i in xrange(self.core_mesh_length):
-            self.alpha[i] = numpy.log(self.flux_new[i] / self.flux_old[i]) / self.dt
+            self.alpha[i] = numpy.log(self.flux[i, 0] / self.flux[i, 1]) / self.dt
 
     # Propagate angular flux boundary conditions across the problem.
     def flux_iteration(self):
@@ -161,8 +161,8 @@ class StepCharacteristic(object):
                 if xi < 10**-4:
                     xi = 10**-4 / self.ab[z]
 
-                q = (self.sig_s[self.material[i]] * self.flux_old[i]
-                     + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux_old[i]
+                q = (self.sig_s[self.material[i]] * self.flux[i, 1]
+                     + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
                      + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])  # source term
 
                 self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
@@ -178,8 +178,8 @@ class StepCharacteristic(object):
                 if xi < 10**-4:
                     xi = 10**-4 / numpy.abs(self.ab[z])
 
-                q = (self.sig_s[self.material[i-1]] * self.flux_old[i-1]
-                     + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]] * self.flux_old[i - 1]
+                q = (self.sig_s[self.material[i-1]] * self.flux[i-1, 1]
+                     + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]] * self.flux[i - 1, 1]
                      + self.lambda_eff * self.delayed_neutron_precursor_concentration[i-1])  # source term
 
                 self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
@@ -205,17 +205,17 @@ class StepCharacteristic(object):
             # print "-------------------------------------------"
 
             self.flux_iteration()  # do a flux iteration
-            self.flux_new = self.flux_new / numpy.sum(self.flux_new)
+            self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
             # Check for convergence
-            if abs(numpy.max(((self.flux_new[:] - self.flux_old[:]) / self.flux_new[:]))) < 1E-6:
+            if abs(numpy.max(((self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))) < 1E-6:
                 self.exit1 = 1  # exit flux iteration
-                self.flux_old = self.flux_new # assign flux
-                print self.flux_old
+                self.flux[:, 1] = self.flux[:, 0] # assign flux
+                print self.flux
                 self.results()
 
             else:
-                self.flux_old = self.flux_new  # assign flux
-                self.flux_new = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+                self.flux[:, 1] = self.flux[:, 0]  # assign flux
+                self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
 
     """Plot scalar and angular fluxes."""
@@ -224,7 +224,7 @@ class StepCharacteristic(object):
         print 'Flux iterations: {0}'.format(self.flux_iterations)
         # plot scalar flux
         x = numpy.arange(0, self.core_mesh_length)
-        plt.plot(x, self.flux_new[:])
+        plt.plot(x, self.flux[:, 0])
         plt.grid(True)
         plt.xlabel('Position [cm]')
         plt.ylabel('Flux [s^-1 cm^-2]')
