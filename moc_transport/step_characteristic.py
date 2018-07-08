@@ -82,7 +82,7 @@ class StepCharacteristic(object):
 
         # Alpha approximation parameters
         self.alpha = 0.1 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 1000 # neutron velocity
+        self.v = 100 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = 0.1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
@@ -96,7 +96,6 @@ class StepCharacteristic(object):
         self.angular_flux_center = numpy.zeros((self.core_mesh_length, len(self.ab)),
                                                dtype=numpy.float64)  # initialize edge flux
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
-        self.fission_source_dx = 0.0
 
         # Solver metrics
         self.exit1 = 0  # initialize exit condition
@@ -228,7 +227,9 @@ class StepCharacteristic(object):
 
         for time_step in xrange(1, 10):
 
-            self.flux[:, 0] = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+            self.flux_iterations = 0
+
+            self.flux = numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
             self.iterate_alpha(time_step-1)
 
             self.exit2 = 0
@@ -258,6 +259,7 @@ class StepCharacteristic(object):
 
                 else:
                     self.iterate_alpha(time_step-1)
+                    print "Alpha: {}".format(self.alpha)
                     self.flux[:, 1] = self.flux[:, 0]  # assign flux
                     self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                     self.iterate_boundary_condition()
