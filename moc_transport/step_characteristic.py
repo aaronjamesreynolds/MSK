@@ -78,10 +78,10 @@ class StepCharacteristic(object):
         self.core_mesh_length = input_data.data.cells  # number of intervals
         self.dx = 0.1  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
-        self.dt = 0.1  # discretization in time
+        self.dt = 1.0  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 0.1 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
@@ -149,10 +149,10 @@ class StepCharacteristic(object):
                     self.angular_flux_edge[j, i] = self.angular_flux_edge[j, len(self.ab) - i - 1]
 
     """ Iterate on alpha based on old and new scalar flux """
-    def iterate_alpha(self):
+    def iterate_alpha(self, last_time_step):
 
         for i in xrange(self.core_mesh_length):
-            self.alpha[i] = numpy.log(self.flux[i, 0] / self.flux[i, 1]) / self.dt
+            self.alpha[i] = numpy.log(self.flux[i, 0] / self.flux_t[i, last_time_step]) / self.dt
 
     # Propagate angular flux boundary conditions across the problem.
     def flux_iteration(self):
@@ -212,6 +212,8 @@ class StepCharacteristic(object):
             if abs(numpy.max(((self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))) < 1E-6:
                 self.exit1 = 1  # exit flux iteration
                 self.flux[:, 1] = self.flux[:, 0] # reassign flux
+                self.flux_t[:, 0] = self.flux[:, 0]
+                self.solve()
                 print self.flux
                 self.results()
 
@@ -219,6 +221,46 @@ class StepCharacteristic(object):
                 self.flux[:, 1] = self.flux[:, 0]  # assign flux
                 self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
+
+    """For all but the first time step."""
+    def solve(self):
+        print "First time step solution found, solving for subsequent steps..."
+
+        for time_step in xrange(1, 10):
+
+            self.flux[:, 0] = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+            self.iterate_alpha(time_step-1)
+
+            self.exit2 = 0
+
+            while self.exit2 == 0:  # flux convergence
+
+                self.flux_iterations += 1
+
+                # print "----------------DEBUG----------------------"
+                # print "Iteration: {}".format(self.flux_iterations)
+                # print "Alpha: {}".format(self.alpha)
+                # print "Flux_old: {}".format(self.flux_old)
+                # print "-------------------------------------------"
+
+                self.flux_iteration()  # do a flux
+                self.calculate_eddington_factors()
+                self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
+                # Check for convergence
+                if abs(numpy.max(((self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))) < 1E-6:
+                    self.exit2 = 1  # exit flux iteration
+                    self.flux[:, 1] = self.flux[:, 0] # reassign flux
+                    self.flux_t[:, time_step] = self.flux[:, 0]
+                    print self.flux
+                    print "Solution at step {} found".format(time_step)
+                    print "Alpha: {}".format(self.alpha)
+                    self.results()
+
+                else:
+                    self.iterate_alpha(time_step-1)
+                    self.flux[:, 1] = self.flux[:, 0]  # assign flux
+                    self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+                    self.iterate_boundary_condition()
 
     """Plot scalar and angular fluxes."""
     def results(self):
@@ -232,27 +274,28 @@ class StepCharacteristic(object):
         plt.ylabel('Flux [s^-1 cm^-2]')
         plt.title('Neutron Flux')
         plt.show()
-        # plot angular flux
-        for i in xrange(10):
-            plt.plot(x, self.angular_flux_center[:, i])
-        plt.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Flux [s^-1 cm^-2]')
-        plt.title('Angular Neutron Flux')
-        plt.show()
-        # plot eddington factors
-        plt.plot(x, self.eddington_factors[:])
-        plt.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Eddington Factor')
-        plt.title('Eddington Factors')
-        plt.show()
+
+        # # plot angular flux
+        # for i in xrange(10):
+        #     plt.plot(x, self.angular_flux_center[:, i])
+        # plt.grid(True)
+        # plt.xlabel('Position [cm]')
+        # plt.ylabel('Flux [s^-1 cm^-2]')
+        # plt.title('Angular Neutron Flux')
+        # plt.show()
+        # # plot eddington factors
+        # plt.plot(x, self.eddington_factors[:])
+        # plt.grid(True)
+        # plt.xlabel('Position [cm]')
+        # plt.ylabel('Eddington Factor')
+        # plt.title('Eddington Factors')
+        # plt.show()
 
 if __name__ == "__main__":
 
     test = StepCharacteristic("test_input.yaml")
     print test.material
-    test.solve()
+    test.solve_begin()
 
 
 
