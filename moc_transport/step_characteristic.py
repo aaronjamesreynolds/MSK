@@ -89,7 +89,7 @@ class StepCharacteristic(object):
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
-        #self.flux_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)  # initialize flux
+        self.flux_t = numpy.zeros((self.core_mesh_length, 10), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = numpy.zeros((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge flux
@@ -190,10 +190,9 @@ class StepCharacteristic(object):
                 self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * numpy.abs(self.ab[z]))
                                                                              + self.angular_flux_edge[i, z]
                                                                               - self.angular_flux_edge[i - 1, z])
-
         self.calculate_scalar_flux()
 
-    def solve(self):
+    def solve_begin(self):
         print "Performing method of characterisitics solve..."
 
         while self.exit1 == 0:  # flux convergence
@@ -248,9 +247,6 @@ class StepCharacteristic(object):
         plt.ylabel('Eddington Factor')
         plt.title('Eddington Factors')
         plt.show()
-
-
-
 
 if __name__ == "__main__":
 
