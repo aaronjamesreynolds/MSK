@@ -76,16 +76,16 @@ class StepCharacteristic(object):
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        self.dx = 1.0  # discretization in length
+        self.dx = 0.1  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
         self.dt = 0.1  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 0.1 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 0.1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -109,9 +109,9 @@ class StepCharacteristic(object):
             for j in [0, self.core_mesh_length]:
                 for i in xrange(10):
                     if i + 1 <= len(self.ab) / 2 and j == self.core_mesh_length:
-                        self.angular_flux_edge[j][i] = 1
+                        self.angular_flux_edge[j, i] = 1
                     elif i + 1 > len(self.ab) / 2 and j == 0:
-                        self.angular_flux_edge[j][i] = 1
+                        self.angular_flux_edge[j, i] = 1
 
     """ With given angular fluxes at the center, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_flux(self):
@@ -130,10 +130,12 @@ class StepCharacteristic(object):
     """ Calculates eddington factors (done a single time after problem is converged) """
     def calculate_eddington_factors(self):
 
+        self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
+
         for i in xrange(self.core_mesh_length):
             for x in xrange(len(self.ab)):
                 self.eddington_factors[i] = self.eddington_factors[i] + self.ab[x] ** 2 *\
-                                               self.angular_flux_center[i][x] * self.weights[x]\
+                                               self.angular_flux_center[i, x] * self.weights[x]\
                                                / self.flux[i, 0]
 
     """ Reflects given angular fluxes at the boundary across the mu = 0 axis. """
@@ -204,12 +206,13 @@ class StepCharacteristic(object):
             # print "Flux_old: {}".format(self.flux_old)
             # print "-------------------------------------------"
 
-            self.flux_iteration()  # do a flux iteration
+            self.flux_iteration()  # do a flux
+            self.calculate_eddington_factors()
             self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
             # Check for convergence
             if abs(numpy.max(((self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))) < 1E-6:
                 self.exit1 = 1  # exit flux iteration
-                self.flux[:, 1] = self.flux[:, 0] # assign flux
+                self.flux[:, 1] = self.flux[:, 0] # reassign flux
                 print self.flux
                 self.results()
 
@@ -237,6 +240,13 @@ class StepCharacteristic(object):
         plt.xlabel('Position [cm]')
         plt.ylabel('Flux [s^-1 cm^-2]')
         plt.title('Angular Neutron Flux')
+        plt.show()
+        # plot eddington factors
+        plt.plot(x, self.eddington_factors[:])
+        plt.grid(True)
+        plt.xlabel('Position [cm]')
+        plt.ylabel('Eddington Factor')
+        plt.title('Eddington Factors')
         plt.show()
 
 
