@@ -76,25 +76,26 @@ class StepCharacteristic(object):
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        self.dx = 0.1  # discretization in length
+        self.dx = 0.5  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
-        self.dt = 1.0  # discretization in time
+        self.dt = 0.1  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 0.1 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 100 # neutron velocity
+        self.alpha = 0.0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 0.1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
-        self.flux_t = numpy.zeros((self.core_mesh_length, 10), dtype=numpy.float64) # assume ten time steps to start
+        self.flux_t = numpy.zeros((self.core_mesh_length, 100), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = numpy.zeros((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge flux
         self.angular_flux_center = numpy.zeros((self.core_mesh_length, len(self.ab)),
                                                dtype=numpy.float64)  # initialize edge flux
+        self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
 
         # Solver metrics
@@ -124,7 +125,17 @@ class StepCharacteristic(object):
 
         for i in xrange(self.core_mesh_length+1):
             for x in xrange(len(self.ab)):
-                self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i][x]
+                self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i, x]
+
+    """ With given angular fluxes at the edge, calculate the current using a quadrature set. """
+
+    def calculate_current(self):
+
+        self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
+
+        for i in xrange(self.core_mesh_length + 1):
+            for x in xrange(len(self.ab)):
+                self.current[i] = self.current[i] + self.ab[x] * self.weights[x] * self.angular_flux_edge[i, x]
 
     """ Calculates eddington factors (done a single time after problem is converged) """
     def calculate_eddington_factors(self):
@@ -198,11 +209,11 @@ class StepCharacteristic(object):
 
             self.flux_iterations += 1
 
-            # print "----------------DEBUG----------------------"
-            # print "Iteration: {}".format(self.flux_iterations)
-            # print "Alpha: {}".format(self.alpha)
-            # print "Flux_old: {}".format(self.flux_old)
-            # print "-------------------------------------------"
+            print "----------------DEBUG----------------------"
+            print "Iteration: {}".format(self.flux_iterations)
+            print "Alpha: {}".format(self.alpha)
+            print "Flux: {}".format(self.flux[:, 1])
+            print "-------------------------------------------"
 
             self.flux_iteration()  # do a flux
             self.calculate_eddington_factors()
@@ -212,8 +223,9 @@ class StepCharacteristic(object):
                 self.exit1 = 1  # exit flux iteration
                 self.flux[:, 1] = self.flux[:, 0] # reassign flux
                 self.flux_t[:, 0] = self.flux[:, 0]
-                self.solve()
+                #self.solve()
                 print self.flux
+                self.calculate_current()
                 self.results()
 
             else:
@@ -225,7 +237,7 @@ class StepCharacteristic(object):
     def solve(self):
         print "First time step solution found, solving for subsequent steps..."
 
-        for time_step in xrange(1, 10):
+        for time_step in xrange(1, 100):
 
             self.flux_iterations = 0
 
@@ -254,12 +266,12 @@ class StepCharacteristic(object):
                     self.flux_t[:, time_step] = self.flux[:, 0]
                     print self.flux
                     print "Solution at step {} found".format(time_step)
-                    print "Alpha: {}".format(self.alpha)
+                   # print "Alpha: {}".format(self.alpha)
                     self.results()
 
                 else:
                     self.iterate_alpha(time_step-1)
-                    print "Alpha: {}".format(self.alpha)
+                    #t "Alpha: {}".format(self.alpha)
                     self.flux[:, 1] = self.flux[:, 0]  # assign flux
                     self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                     self.iterate_boundary_condition()
@@ -275,6 +287,14 @@ class StepCharacteristic(object):
         plt.xlabel('Position [cm]')
         plt.ylabel('Flux [s^-1 cm^-2]')
         plt.title('Neutron Flux')
+        plt.show()
+
+        x = numpy.arange(0, self.core_mesh_length + 1)
+        plt.plot(x, self.current[:])
+        plt.grid(True)
+        plt.xlabel('Position [cm]')
+        plt.ylabel('Current [s^-1 cm^-2]')
+        plt.title('Neutron Current')
         plt.show()
 
         # # plot angular flux
@@ -298,6 +318,8 @@ if __name__ == "__main__":
     test = StepCharacteristic("test_input.yaml")
     print test.material
     test.solve_begin()
+    test.calculate_current()
+    print test.current
 
 
 
