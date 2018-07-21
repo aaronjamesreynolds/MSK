@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# ToDo: normalize to allow for time dynamics
+# ToDo: (1) normalize to allow for time dynamics (2) make a test
 
 import numpy
 import matplotlib.pyplot as plt
@@ -83,7 +83,7 @@ class StepCharacteristic(object):
         self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 0.01*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -200,7 +200,7 @@ class StepCharacteristic(object):
                                                                               - self.angular_flux_edge[i - 1, z])
         self.calculate_scalar_flux()
 
-    def solve_begin(self):
+    def solve(self):
         print "Performing method of characterisitics solve..."
 
         while self.exit1 == 0:  # flux convergence
@@ -221,7 +221,6 @@ class StepCharacteristic(object):
                 self.exit1 = 1  # exit flux iteration
                 self.flux[:, 1] = self.flux[:, 0] # reassign flux
                 self.flux_t[:, 0] = self.flux[:, 0]
-                #self.solve()
                 print self.flux
                 self.calculate_current()
                 self.results()
@@ -231,8 +230,8 @@ class StepCharacteristic(object):
                 self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
 
-    """For all but the first time step."""
-    def solve(self):
+    """Solve forward in time. [NOT USED]"""
+    def solve_forward(self):
         print "First time step solution found, solving for subsequent steps..."
 
         for time_step in xrange(1, 100):
@@ -274,6 +273,14 @@ class StepCharacteristic(object):
                     self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                     self.iterate_boundary_condition()
 
+    """ Update neutron flux, neutron current, Eddington factors, and delayed neutron precursor concentration variables. """
+    def update_variables(self, _flux, _current, _eddington_factors, _delayed_neutron_precursor_concentration):
+
+        self.flux[:, 1] = _flux
+        self.current[:, 1] = _current
+        self.eddington_factors = _eddington_factors
+        self.delayed_neutron_precursor_concentration[:, 1] = _delayed_neutron_precursor_concentration
+
     """Plot scalar and angular fluxes."""
     def results(self):
 
@@ -314,10 +321,7 @@ class StepCharacteristic(object):
 if __name__ == "__main__":
 
     test = StepCharacteristic("test_input.yaml")
-    print test.material
-    test.solve_begin()
-    test.calculate_current()
-    print test.current
+    test.solve()
 
 
 
