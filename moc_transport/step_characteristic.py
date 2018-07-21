@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 
-#To do:
-# edit to play nice with input.read classes
-# make suitable for single group problems
+# ToDo: normalize to allow for time dynamics
 
 import numpy
 import matplotlib.pyplot as plt
