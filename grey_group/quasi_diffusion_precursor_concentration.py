@@ -89,6 +89,27 @@ class QuasiDiffusionPrecursorConcentration:
             self.flux[position, 0] = solutions[0]
             self.delayed_neutron_precursor_concentration[position, 0] = solutions[1]
 
+    def implicit_time_solve(self):
+
+        for position in xrange(self.core_mesh_length):
+
+            sig_a = self.sig_t[self.material[position]] - self.sig_s[self.material[position]]
+            self.coefficient_matrix[0, 0] = 1 + self.v * self.dt * (sig_a - (1 - self.beta) * self.nu[self.material[position]] *
+                                                                    self.sig_f[self.material[position]])
+            self.coefficient_matrix[0, 1] = -self.v * self.dt * self.lambda_eff
+            self.coefficient_matrix[1, 0] = -self.dt * self.beta * self.nu[self.material[position]] * self.sig_f[self.material[position]]
+            self.coefficient_matrix[1, 1] = 1 + self.dt * self.lambda_eff
+
+            self.rhs[0] = self.flux[position, 1] + self.v * self.dt * \
+                          (self.current[position, 1] - self.current[position + 1 , 1]) / self.dx
+            self.rhs[1] = self.dt * (self.dnpc_velocity[position - 1] *
+                                     self.delayed_neutron_precursor_concentration[position - 1, 1] - self.dnpc_velocity[position] *
+                                     self.delayed_neutron_precursor_concentration[position, 1]) / self.dx + \
+                                     self.delayed_neutron_precursor_concentration[position, 1]
+            solutions = numpy.linalg.solve(self.coefficient_matrix, self.rhs)
+            self.flux[position, 0] = solutions[0]
+            self.delayed_neutron_precursor_concentration[position, 0] = solutions[1]
+
 
 
 
