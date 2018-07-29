@@ -31,10 +31,11 @@ class InputDataYAML(yaml.YAMLObject):
         self.dt = dt
 
     def __repr__(self):
-        return "%s(sig_t = %r, sig_s=%r, sig_f=%r, nu=%r, cells = %r, material = %r)" % (self.__class__.__name__,
+        return "%s(sig_t = %r, sig_s=%r, sig_f=%r, nu=%r, cells = %r, material = %r, dx = %r, dt = %r)" % (self.__class__.__name__,
                                                                                          self.sig_t, self.sig_s,
                                                                                          self.sig_f, self.nu,
-                                                                                         self.cells, self.material)
+                                                                                         self.cells, self.material,
+                                                                                         self.dx, self.dt)
 
 # if __name__ == '__main__':
 #
