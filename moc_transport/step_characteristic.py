@@ -70,13 +70,15 @@ class StepCharacteristic(object):
         self.sig_f = input_data.data.sig_f  # fission cross section
         self.nu = input_data.data.nu  # number of neutrons produced per fission
         self.material = input_data.data.material  # material map
+        self.dx = input_data.data.dx
+        self.dt = input_data.data.dt
 
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        self.dx = 0.5  # discretization in length
+        self.dx = 1.0  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
-        self.dt = 0.5  # discretization in time
+        self.dt = 0.0001 # discretization in time
 
         # Alpha approximation parameters
         self.alpha = 0.01 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
@@ -86,12 +88,12 @@ class StepCharacteristic(object):
         self.delayed_neutron_precursor_concentration = 0.05*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux = 10.0*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
         self.flux_t = numpy.zeros((self.core_mesh_length, 100), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
-        self.angular_flux_edge = numpy.zeros((self.core_mesh_length + 1, len(self.ab)),
+        self.angular_flux_edge = 10.0*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge flux
-        self.angular_flux_center = numpy.zeros((self.core_mesh_length, len(self.ab)),
+        self.angular_flux_center = 10.0*numpy.ones((self.core_mesh_length, len(self.ab)),
                                                dtype=numpy.float64)  # initialize edge flux
         self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
@@ -203,6 +205,7 @@ class StepCharacteristic(object):
     def solve(self, single_step = False):
         print "Performing method of characterisitics solve..."
 
+        self.flux_iterations = 0
         while self.exit1 == 0:  # flux convergence
 
             if single_step:
@@ -230,6 +233,7 @@ class StepCharacteristic(object):
                 print ''
 
             else:
+                self.calculate_current()
                 self.flux[:, 1] = self.flux[:, 0]  # assign flux
                 self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
@@ -286,25 +290,26 @@ class StepCharacteristic(object):
         self.delayed_neutron_precursor_concentration = _delayed_neutron_precursor_concentration
 
     """Plot scalar and angular fluxes."""
-    def results(self):
+    def results(self, print_current=False):
 
         print 'Flux iterations: {0}'.format(self.flux_iterations)
         # plot scalar flux
         x = numpy.arange(0, self.core_mesh_length)
-        plt.plot(x, self.flux[:, 0])
+        plt.plot(x, self.flux[:, 1])
         plt.grid(True)
         plt.xlabel('Position [cm]')
         plt.ylabel('Flux [s^-1 cm^-2]')
-        plt.title('Neutron Flux')
+        plt.title('MOC: Neutron Flux')
         plt.show()
 
-        x = numpy.arange(0, self.core_mesh_length + 1)
-        plt.plot(x, self.current[:])
-        plt.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Current [s^-1 cm^-2]')
-        plt.title('Neutron Current')
-        plt.show()
+        if print_current:
+            x = numpy.arange(0, self.core_mesh_length + 1)
+            plt.plot(x, self.current[:])
+            plt.grid(True)
+            plt.xlabel('Position [cm]')
+            plt.ylabel('Current [s^-1 cm^-2]')
+            plt.title('Neutron Current')
+            plt.show()
 
         # # plot angular flux
         # for i in xrange(10):
@@ -325,7 +330,8 @@ class StepCharacteristic(object):
 if __name__ == "__main__":
 
     test = StepCharacteristic("test_input.yaml")
-    test.solve()
+    test.solve(True)
+    test.results()
 
 
 
