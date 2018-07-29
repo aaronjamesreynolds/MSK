@@ -20,13 +20,15 @@ class InputDataYAML(yaml.YAMLObject):
 
     yaml_tag = u'!InputData'
 
-    def __init__(self, sig_t, sig_s, sig_f, nu, cells, material):
+    def __init__(self, sig_t, sig_s, sig_f, nu, cells, material, dx, dt):
         self.sig_t = sig_t
         self.sig_s = sig_s
         self.sig_f = sig_f
         self.nu = nu
         self.cells = cells
         self.material = material
+        self.dx = dx
+        self.dt = dt
 
     def __repr__(self):
         return "%s(sig_t = %r, sig_s=%r, sig_f=%r, nu=%r, cells = %r, material = %r)" % (self.__class__.__name__,
