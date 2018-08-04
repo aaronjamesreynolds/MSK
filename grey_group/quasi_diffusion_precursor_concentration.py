@@ -48,6 +48,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = 0.0*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
         self.dnpc_velocity = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.dnpc_velocity = xrange(50, 0, -1)
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -129,9 +130,9 @@ class QuasiDiffusionPrecursorConcentration:
 
     def set_initial_conditions(self):
 
-        self.flux[0, 0] = self.flux[0, 0]
+        self.flux[0, 0] = self.flux[0, 1]
         self.current[0, 0] = 0
-        self.delayed_neutron_precursor_concentration[0, 0] = 0
+        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 1]
 
 
 if __name__ == "__main__":
@@ -142,14 +143,18 @@ if __name__ == "__main__":
 
     x = numpy.arange(0, test_gray.core_mesh_length)
 
-    for iteration in xrange(200):
+    for iteration in xrange(1000):
         test_gray.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
                                    test_moc.delayed_neutron_precursor_concentration) # test to update variables
         test_gray.implicit_time_solve() # test if linear system can be solved
         test_moc.update_variables(test_gray.flux[:, 0], test_gray.delayed_neutron_precursor_concentration[:, 0])
         test_moc.exit1 = 0
         test_moc.solve(True)
-        test_moc.results()
+
+        if test_moc.converged:
+            print "CONVERGED"
+            break
+        #test_moc.results()
 
 
     # plot scalar flux
