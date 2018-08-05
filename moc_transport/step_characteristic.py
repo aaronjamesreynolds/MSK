@@ -219,9 +219,9 @@ class StepCharacteristic(object):
                     xi = 10 ** -4 / self.ab[z]
 
                 self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
-                                                   + (self.q[i] / (2 * self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
+                                                   + (self.q[i] / (self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
 
-                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (self.q[i] * self.dx / (2 * self.ab[z])
+                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (self.q[i] * self.dx / (self.ab[z])
                                                                          + self.angular_flux_edge[i, z]
                                                                          - self.angular_flux_edge[i + 1, z])
         for z in xrange(0, 5):
@@ -233,11 +233,11 @@ class StepCharacteristic(object):
                     xi = 10 ** -4 / numpy.abs(self.ab[z])
 
                 self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
-                                                   + (self.q[i - 1] / (2 * numpy.abs(self.ab[z]) * xi)) * (
+                                                   + (self.q[i - 1] / ( numpy.abs(self.ab[z]) * xi)) * (
                                                            1 - numpy.exp(-xi * self.dx))
 
                 self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (
-                        self.q[i - 1] * self.dx / (2 * numpy.abs(self.ab[z]))
+                        self.q[i - 1] * self.dx / (numpy.abs(self.ab[z]))
                         + self.angular_flux_edge[i, z]
                         - self.angular_flux_edge[i - 1, z])
 
@@ -249,9 +249,9 @@ class StepCharacteristic(object):
 
             self.q[i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
                  + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
-                 + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])  # source term
+                 + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
-        self.q = self.q / numpy.sum(self.q)
+        self.q = self.q / (numpy.sum(self.q))
 
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
