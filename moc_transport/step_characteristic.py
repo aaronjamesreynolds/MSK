@@ -81,16 +81,19 @@ class StepCharacteristic(object):
         #self.dt = 0.0001 # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 0.00 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 1000 # neutron velocity
+        self.alpha = 100000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.v = 10000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 0.00*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration =1.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.q = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
+        self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+
+
 
         # Set initial values
-        self.flux = 10.0*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
-        self.flux_t = numpy.zeros((self.core_mesh_length, 100), dtype=numpy.float64) # assume ten time steps to start
+        self.flux = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux_t = numpy.zeros((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = 10.0*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge flux
@@ -98,7 +101,6 @@ class StepCharacteristic(object):
                                                dtype=numpy.float64)  # initialize edge flux
         self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
-
         # Solver metrics
         self.exit1 = 0  # initialize exit condition
         self.exit2 = 0  # initialize exit condition
@@ -106,6 +108,8 @@ class StepCharacteristic(object):
         self.source_iterations = 0  # iteration counter
         self.converged = False
         self.normalized = False
+        self.first_step = True
+        self.multiplier = 1
 
         # Implement initial angular fluxes conditions of 1 at cell edges.
         for k in xrange(self.groups):
@@ -162,10 +166,10 @@ class StepCharacteristic(object):
                     self.angular_flux_edge[j, i] = self.angular_flux_edge[j, len(self.ab) - i - 1]
 
     """ Iterate on alpha based on old and new scalar flux """
-    def iterate_alpha(self, last_time_step):
+    def iterate_alpha(self):
 
         for i in xrange(self.core_mesh_length):
-            self.alpha[i] = numpy.log(self.flux[i, 0] / self.flux_t[i, last_time_step]) / self.dt
+            self.alpha[i] = numpy.log(self.flux[i, 0] / self.flux_t[i]) / self.dt
 
     # Propagate angular flux boundary conditions across the problem.
     def flux_iteration_deprecated(self):
@@ -215,8 +219,8 @@ class StepCharacteristic(object):
             for i in xrange(self.core_mesh_length):
                 xi = (self.sig_t[self.material[i]] + self.alpha[i] / self.v) / self.ab[z]  # integrating factor
 
-                if xi < 10 ** -4:
-                    xi = 10 ** -4 / self.ab[z]
+                if xi * numpy.abs(self.ab[z]) < 10 ** -4:
+                    xi = 10 ** -4 / numpy.abs(self.ab[z])
 
                 self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
                                                    + (self.q[i] / (self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
@@ -229,7 +233,7 @@ class StepCharacteristic(object):
                 xi = (self.sig_t[self.material[i - 1]] + self.alpha[i - i] / self.v) / numpy.abs(
                     self.ab[z])  # integrating factor
 
-                if xi < 10 ** -4:
+                if xi * numpy.abs(self.ab[z]) < 10 ** -4:
                     xi = 10 ** -4 / numpy.abs(self.ab[z])
 
                 self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
@@ -245,16 +249,22 @@ class StepCharacteristic(object):
 
     def calculate_normalized_source(self):
 
+        #self.q_old = numpy.array(self.q)
+
         for i in xrange(self.core_mesh_length):
 
             self.q[i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
                  + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
                  + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
-        self.q = self.q / (numpy.sum(self.q))
+
+        self.q = numpy.array(self.q / (numpy.sum(self.q)))
+        #else:
+         #   self.q = numpy.array(self.q / (numpy.sum(self.q_old)))# * (numpy.sum(self.q)/numpy.sum(self.q_old))
 
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
+        #self.flux[:, 1] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
 
         self.flux_iterations = 0
         while not self.converged:  # flux convergence
@@ -273,23 +283,40 @@ class StepCharacteristic(object):
             # Check for convergence
             print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
             if verbose:
-                print "Absolute relative difference: {}".format((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))
+                print "Flux: Absolute relative difference: {}".format((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))
+                print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
             print "-------------------------------------------"
 
-            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4:
+            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4 and self.flux_iterations > 3: #and numpy.max(numpy.abs(self.q - self.q_old)) < 1E-4:
 
                 self.converged = True
+                if not self.first_step:
+                    self.iterate_alpha()
+                    print "Alpha: {}".format(self.alpha)
+                    #self.alpha = -self.multiplier*100*numpy.ones(self.core_mesh_length,
+                                          #       dtype=numpy.float64)  # describes change in scalar flux between time steps
+
+                if self.first_step:
+                    self.flux_t[:] = numpy.array(self.flux[:, 0])
+                    self.q_old = numpy.array(self.q)
+                    self.first_step = False
+
+                else:
+                    self.flux_t[:] = numpy.array(self.flux[:, 0])
+
                 self.flux[:, 1] = self.flux[:, 0] # reassign flux
-                self.flux_t[:, 0] = self.flux[:, 0]
                 print self.flux
                 self.calculate_current()
-                self.results()
+                #self.results()
                 self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+
                 print 'CONVERGED'
 
             else:
+                if not self.first_step:
+                    self.iterate_alpha()
+                self.flux[:, 1] = numpy.array(self.flux[:, 0]) # assign flux
                 self.calculate_current()
-                self.flux[:, 1] = self.flux[:, 0]  # assign flux
                 self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
                 self.iterate_boundary_condition()
                 if single_step:
@@ -322,14 +349,14 @@ class StepCharacteristic(object):
                 self.calculate_eddington_factors()
                 self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
                 # Check for convergence
-                if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-6:
+                if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4:
                     self.exit2 = 1  # exit flux iteration
                     self.flux[:, 1] = self.flux[:, 0] # reassign flux
                     self.flux_t[:, time_step] = self.flux[:, 0]
                     print self.flux
                     print "Solution at step {} found".format(time_step)
                    # print "Alpha: {}".format(self.alpha)
-                    self.results()
+                    #self.results()
 
                 else:
                     self.iterate_alpha(time_step-1)
