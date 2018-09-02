@@ -147,7 +147,7 @@ class QuasiDiffusionPrecursorConcentration:
 
 if __name__ == "__main__":
 
-    steps =
+    steps = 5
     flux_t = numpy.zeros([90, steps+1])
     precursor_t = numpy.zeros([90, steps+1])
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization
