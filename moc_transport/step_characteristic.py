@@ -76,9 +76,7 @@ class StepCharacteristic(object):
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        #self.dx = 1.0  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
-        #self.dt = 0.0001 # discretization in time
 
         # Alpha approximation parameters
         self.alpha = 10000* numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
@@ -88,8 +86,6 @@ class StepCharacteristic(object):
         self.delayed_neutron_precursor_concentration =1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.q = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
-
-
 
         # Set initial values
         self.flux = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -249,24 +245,14 @@ class StepCharacteristic(object):
 
     def calculate_normalized_source(self):
 
-        #self.q_old = numpy.array(self.q)
-
         for i in xrange(self.core_mesh_length):
 
             self.q[i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
                  + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
                  + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
-
-        #self.q = self.core_mesh_length*numpy.array(self.q / (numpy.sum(self.q)))
-        #self.q = self.q
-
-        #else:
-         #   self.q = numpy.array(self.q / (numpy.sum(self.q_old)))# * (numpy.sum(self.q)/numpy.sum(self.q_old))
-
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
-        #self.flux[:, 1] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
 
         self.flux_iterations = 0
         while not self.converged:  # flux convergence
@@ -281,7 +267,6 @@ class StepCharacteristic(object):
 
             self.flux_iteration()  # do a flux
             self.calculate_eddington_factors()
-            #self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
             # Check for convergence
             print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
             if verbose:
