@@ -81,11 +81,11 @@ class StepCharacteristic(object):
         #self.dt = 0.0001 # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 100000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 10000* numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 10000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration =1.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration =1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.q = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
@@ -258,7 +258,9 @@ class StepCharacteristic(object):
                  + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
 
-        self.q = numpy.array(self.q / (numpy.sum(self.q)))
+        #self.q = self.core_mesh_length*numpy.array(self.q / (numpy.sum(self.q)))
+        #self.q = self.q
+
         #else:
          #   self.q = numpy.array(self.q / (numpy.sum(self.q_old)))# * (numpy.sum(self.q)/numpy.sum(self.q_old))
 
@@ -287,7 +289,7 @@ class StepCharacteristic(object):
                 print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
             print "-------------------------------------------"
 
-            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4 and self.flux_iterations > 3: #and numpy.max(numpy.abs(self.q - self.q_old)) < 1E-4:
+            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-5 and self.flux_iterations > 3: #and numpy.max(numpy.abs(self.q - self.q_old)) < 1E-4:
 
                 self.converged = True
                 if not self.first_step:
@@ -347,7 +349,7 @@ class StepCharacteristic(object):
 
                 self.flux_iteration()  # do a flux
                 self.calculate_eddington_factors()
-                self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
+                #self.flux[:, 0] = self.flux[:, 0] / numpy.sum(self.flux[:, 0])
                 # Check for convergence
                 if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4:
                     self.exit2 = 1  # exit flux iteration
