@@ -79,11 +79,11 @@ class StepCharacteristic(object):
         self.dmu = 2 / len(self.ab)  # discretization in angle
 
         # Alpha approximation parameters
-        self.alpha = 10000* numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 10000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 10000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration =1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration =1e-20*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.q = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
