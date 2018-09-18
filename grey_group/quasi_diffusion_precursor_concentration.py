@@ -163,7 +163,6 @@ if __name__ == "__main__":
     for iteration in xrange(steps):
         test_gray.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
                                    test_moc.delayed_neutron_precursor_concentration)
-        #test_gray.update_eddington(test_moc.eddington_factors) # test to update variables
         test_gray.implicit_time_solve() # test if linear system can be solved
         test_moc.update_variables(test_moc.flux[:, 1], test_gray.delayed_neutron_precursor_concentration[:, 0])
         test_moc.exit1 = 0
