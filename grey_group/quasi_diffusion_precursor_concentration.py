@@ -47,7 +47,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.v = 10000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 0.0*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 1e-20*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
         self.dnpc_velocity = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         #self.dnpc_velocity = xrange(9000, 0, -100)
 
@@ -135,14 +135,14 @@ class QuasiDiffusionPrecursorConcentration:
 
         self.delayed_neutron_precursor_concentration[:, 1] = self.delayed_neutron_precursor_concentration[:, 0]
         #make first and last cell equal
-        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
+        #self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
 
 
     def set_initial_conditions(self):
 
         self.flux[0, 0] = self.flux[0, 1]
         self.current[0, 0] = 0
-        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
+        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 1]
 
 
 if __name__ == "__main__":
@@ -163,13 +163,12 @@ if __name__ == "__main__":
     for iteration in xrange(steps):
         test_gray.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
                                    test_moc.delayed_neutron_precursor_concentration)
-        test_gray.update_eddington(test_moc.eddington_factors) # test to update variables
+        #test_gray.update_eddington(test_moc.eddington_factors) # test to update variables
         test_gray.implicit_time_solve() # test if linear system can be solved
-        #test_moc.update_variables(test_moc.flux[:, 1], test_gray.delayed_neutron_precursor_concentration[:, 0])
+        test_moc.update_variables(test_moc.flux[:, 1], test_gray.delayed_neutron_precursor_concentration[:, 0])
         test_moc.exit1 = 0
         test_moc.solve(False, False)
         test_moc.converged = False
-        #test_moc.multiplier = test_moc.multiplier + 1
         flux_t[:, iteration+1] = test_moc.flux[:, 1]
         precursor_t[:, iteration+1] = test_gray.delayed_neutron_precursor_concentration[:, 0]
 
