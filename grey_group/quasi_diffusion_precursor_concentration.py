@@ -44,12 +44,12 @@ class QuasiDiffusionPrecursorConcentration:
 
         # Alpha approximation parameters
         self.alpha = 0.0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 10000 # neutron velocity
+        self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 1e-20*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
         self.dnpc_velocity = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
-        #self.dnpc_velocity = xrange(9000, 0, -100)
+        self.dnpc_velocity = xrange(9000, 0, -100)
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -135,19 +135,19 @@ class QuasiDiffusionPrecursorConcentration:
 
         self.delayed_neutron_precursor_concentration[:, 1] = self.delayed_neutron_precursor_concentration[:, 0]
         #make first and last cell equal
-        #self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
+        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
 
 
     def set_initial_conditions(self):
 
         self.flux[0, 0] = self.flux[0, 1]
         self.current[0, 0] = 0
-        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 1]
+        #self.delayed_neutron_precursor_concentration[0, 0] = 0
 
 
 if __name__ == "__main__":
 
-    steps = 3
+    steps = 10
     flux_t = numpy.zeros([90, steps+1])
     precursor_t = numpy.zeros([90, steps+1])
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization

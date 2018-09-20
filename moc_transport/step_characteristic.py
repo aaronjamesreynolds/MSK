@@ -80,10 +80,11 @@ class StepCharacteristic(object):
 
         # Alpha approximation parameters
         self.alpha = 10000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha_old = 10000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 10000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration =1e-20*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration =1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.q = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
@@ -92,9 +93,9 @@ class StepCharacteristic(object):
         self.flux_t = numpy.zeros((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = 10.0*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
-                                             dtype=numpy.float64)  # initialize edge flux
+                                             dtype=numpy.float64)  # initialize edge angular flux
         self.angular_flux_center = 10.0*numpy.ones((self.core_mesh_length, len(self.ab)),
-                                               dtype=numpy.float64)  # initialize edge flux
+                                               dtype=numpy.float64)  # initialize center angular flux
         self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
         # Solver metrics
@@ -245,6 +246,8 @@ class StepCharacteristic(object):
 
     def calculate_normalized_source(self):
 
+        self.q_old = numpy.array(self.q)
+
         for i in xrange(self.core_mesh_length):
 
             self.q[i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
@@ -265,7 +268,7 @@ class StepCharacteristic(object):
                 print "Alpha: {}".format(self.alpha)
                 print "Flux: {}".format(self.flux[:, 1])
 
-            self.flux_iteration()  # do a flux
+            self.flux_iteration()  # do a flux iteration
             self.calculate_eddington_factors()
             # Check for convergence
             print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
@@ -274,10 +277,14 @@ class StepCharacteristic(object):
                 print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
             print "-------------------------------------------"
 
-            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-5 and self.flux_iterations > 3: #and numpy.max(numpy.abs(self.q - self.q_old)) < 1E-4:
+            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-6\
+                    and self.flux_iterations > 3\
+                    and numpy.max((abs(self.q[:] - self.q_old[:]) / self.q[:])) < 1E-6\
+                    and numpy.max((abs(self.alpha[:] - self.alpha_old[:]) / self.alpha[:])) < 1E-6:
 
                 self.converged = True
                 if not self.first_step:
+                    self.alpha_old = numpy.array(self.alpha)
                     self.iterate_alpha()
                     print "Alpha: {}".format(self.alpha)
                     #self.alpha = -self.multiplier*100*numpy.ones(self.core_mesh_length,
@@ -301,6 +308,7 @@ class StepCharacteristic(object):
 
             else:
                 if not self.first_step:
+                    self.alpha_old = numpy.array(self.alpha)
                     self.iterate_alpha()
                 self.flux[:, 1] = numpy.array(self.flux[:, 0]) # assign flux
                 self.calculate_current()
