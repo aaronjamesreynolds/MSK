@@ -49,7 +49,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
         self.dnpc_velocity = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
-        self.dnpc_velocity = xrange(9000, 0, -100)
+        #self.dnpc_velocity = xrange(900, 0, -10)
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -147,7 +147,7 @@ class QuasiDiffusionPrecursorConcentration:
 
 if __name__ == "__main__":
 
-    steps = 10
+    steps = 2
     flux_t = numpy.zeros([90, steps+1])
     precursor_t = numpy.zeros([90, steps+1])
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization

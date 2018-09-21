@@ -81,6 +81,7 @@ class StepCharacteristic(object):
         # Alpha approximation parameters
         self.alpha = 10000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.alpha_old = 10000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha_oldest = 10000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 10000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
@@ -89,7 +90,7 @@ class StepCharacteristic(object):
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux = 1*numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
         self.flux_t = numpy.zeros((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = 10.0*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
@@ -107,6 +108,8 @@ class StepCharacteristic(object):
         self.normalized = False
         self.first_step = True
         self.multiplier = 1
+        self.rho_convergence = 0
+        self.rho_alpha_convergence = 0
 
         # Implement initial angular fluxes conditions of 1 at cell edges.
         for k in xrange(self.groups):
@@ -277,45 +280,68 @@ class StepCharacteristic(object):
                 print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
             print "-------------------------------------------"
 
-            if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-6\
-                    and self.flux_iterations > 3\
-                    and numpy.max((abs(self.q[:] - self.q_old[:]) / self.q[:])) < 1E-6\
-                    and numpy.max((abs(self.alpha[:] - self.alpha_old[:]) / self.alpha[:])) < 1E-6:
+            if not self.first_step:
+                self.rho_convergence = numpy.max(abs(self.flux[:, 0] - self.flux[:, 1]))\
+                / numpy.max(abs(self.flux[:, 1] - self.flux[:, 2]))
 
-                self.converged = True
-                if not self.first_step:
-                    self.alpha_old = numpy.array(self.alpha)
-                    self.iterate_alpha()
-                    print "Alpha: {}".format(self.alpha)
-                    #self.alpha = -self.multiplier*100*numpy.ones(self.core_mesh_length,
-                                          #       dtype=numpy.float64)  # describes change in scalar flux between time steps
+                if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]))) < 1E-6 * (1 - self.rho_convergence) \
+                        and self.flux_iterations > 3:
 
-                if self.first_step:
-                    self.flux_t[:] = numpy.array(self.flux[:, 0])
-                    self.q_old = numpy.array(self.q)
-                    self.first_step = False
+                    if not self.first_step:
+
+                        self.rho_alpha_convergence = numpy.max(abs(self.alpha[:] - self.alpha_old[:])) \
+                                                     / numpy.max(abs(self.alpha_old[:] - self.alpha_oldest[:]))
+
+                    if numpy.max((abs(self.q[:] - self.q_old[:]) / self.q[:])) < 1E-6\
+                            and numpy.max(abs(self.alpha[:] - self.alpha_old[:])) < 1E-6 * \
+                            (1 - self.rho_alpha_convergence):
+
+                        self.converged = True
+                        if not self.first_step:
+                            self.alpha_oldest = numpy.array(self.alpha_old)
+                            self.alpha_old = numpy.array(self.alpha)
+                            self.iterate_alpha()
+                            print "Alpha: {}".format(self.alpha)
+                            #self.alpha = -self.multiplier*100*numpy.ones(self.core_mesh_length,
+                                                  #       dtype=numpy.float64)  # describes change in scalar flux between time steps
+
+                        if self.first_step:
+                            self.flux_t[:] = numpy.array(self.flux[:, 0])
+                            self.q_old = numpy.array(self.q)
+                            self.first_step = False
+
+                        else:
+                            self.flux_t[:] = numpy.array(self.flux[:, 0])
+
+                        self.flux[:, 2] = numpy.array(self.flux[:, 1]) # reassign flux
+                        self.flux[:, 1] = numpy.array(self.flux[:, 0]) # reassign flux
+                        print self.flux
+                        self.calculate_current()
+                        #self.results()
+                        self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+
+                        print 'CONVERGED'
+
+                    else:
+                        if not self.first_step:
+                            self.alpha_oldest = numpy.array(self.alpha_old)
+                            self.alpha_old = numpy.array(self.alpha)
+                            self.iterate_alpha()
+
+                        self.flux[:, 2] = numpy.array(self.flux[:, 1]) # reassign flux
+                        self.flux[:, 1] = numpy.array(self.flux[:, 0]) # assign flux
+                        self.calculate_current()
+                        self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+                        self.iterate_boundary_condition()
+                        if single_step:
+                            break
 
                 else:
-                    self.flux_t[:] = numpy.array(self.flux[:, 0])
-
-                self.flux[:, 1] = self.flux[:, 0] # reassign flux
-                print self.flux
-                self.calculate_current()
-                #self.results()
-                self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
-
-                print 'CONVERGED'
-
-            else:
-                if not self.first_step:
-                    self.alpha_old = numpy.array(self.alpha)
-                    self.iterate_alpha()
-                self.flux[:, 1] = numpy.array(self.flux[:, 0]) # assign flux
-                self.calculate_current()
-                self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
-                self.iterate_boundary_condition()
-                if single_step:
-                    break
+                    self.flux[:, 2] = numpy.array(self.flux[:, 1])  # reassign flux
+                    self.flux[:, 1] = numpy.array(self.flux[:, 0])  # assign flux
+                    self.calculate_current()
+                    self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+                    self.iterate_boundary_condition()
 
     """Solve forward in time. [NOT USED]"""
     def solve_forward(self):
