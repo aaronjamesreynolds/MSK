@@ -43,12 +43,14 @@ class QuasiDiffusionPrecursorConcentration:
         #self.dt = 0.0001  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 0.0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 1000 # neutron velocity
-        self.beta = 0.007 # delayed neutron fraction
-        self.lambda_eff = 0.08 # delayed neutron precursor decay constant
-        self.delayed_neutron_precursor_concentration = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
-        self.dnpc_velocity = 0.0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.alpha = input_data.data.alpha * numpy.ones(self.core_mesh_length,
+                                                        dtype=numpy.float64)  # describes change in scalar flux between time steps
+        self.v = input_data.data.v  # neutron velocity
+        self.beta = input_data.data.beta  # delayed neutron fraction
+        self.lambda_eff = input_data.data.lambda_eff  # delayed neutron precursor decay constant
+        self.delayed_neutron_precursor_concentration = input_data.data.dnp_concentration * numpy.ones(
+            self.core_mesh_length, dtype=numpy.float64)
+
         #self.dnpc_velocity = xrange(900, 0, -10)
 
         # Set initial values
