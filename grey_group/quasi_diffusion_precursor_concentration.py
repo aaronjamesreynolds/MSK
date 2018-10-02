@@ -43,7 +43,7 @@ class QuasiDiffusionPrecursorConcentration:
         #self.dt = 0.0001  # discretization in time
 
         # Alpha approximation parameters
-        self.alpha = 100.0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 0.0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     precursor_t = numpy.zeros([90, steps+1])
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization
     test_moc = moc.StepCharacteristic("test_input.yaml")
-    test_moc.solve(False, True)
+    test_moc.solve(False, False)
     flux_t[:, 0] = test_moc.flux[:, 1]
     precursor_t[:, 0] = test_gray.delayed_neutron_precursor_concentration[:, 0]
     test_moc.converged = False
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         test_gray.implicit_time_solve() # test if linear system can be solved
         #test_moc.update_variables(test_moc.flux[:, 1], test_gray.delayed_neutron_precursor_concentration[:, 0])
         test_moc.exit1 = 0
-        test_moc.solve(False, False)
+        test_moc.solve(False, True)
         test_moc.converged = False
         flux_t[:, iteration+1] = test_moc.flux[:, 1]
         precursor_t[:, iteration+1] = test_gray.delayed_neutron_precursor_concentration[:, 0]

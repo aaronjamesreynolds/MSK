@@ -79,10 +79,10 @@ class StepCharacteristic(object):
         self.dmu = 2 / len(self.ab)  # discretization in angle
 
         # Alpha approximation parameters
-        self.alpha = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
+        self.alpha = 1000 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.alpha_old = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
         self.alpha_oldest = 0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 100000 # neutron velocity
+        self.v = 1000 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration =1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
@@ -90,7 +90,7 @@ class StepCharacteristic(object):
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux = 1*numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux = 0*numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
         self.flux_t = numpy.zeros((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = 10.0*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
@@ -306,7 +306,7 @@ class StepCharacteristic(object):
                 # SOURCE ITERATION #
                 # ---------------- #
                 if numpy.max((abs(self.q[:] - self.q_old[:]) / self.q[:])) < 1E-4\
-                        and (numpy.max((abs(self.alpha[:] - self.alpha_old[:]))/abs(self.alpha[:])) < 1E-4\
+                        and (numpy.max((abs(self.alpha[:] - self.alpha_old[:]))/abs(self.alpha[:])) < 1E-2\
                              or self.first_step):
 
                     self.converged = True
