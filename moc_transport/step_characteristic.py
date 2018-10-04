@@ -306,7 +306,7 @@ class StepCharacteristic(object):
                 # SOURCE ITERATION #
                 # ---------------- #
                 if numpy.max((abs(self.q[:] - self.q_old[:]) / self.q[:])) < 1E-4\
-                        and (numpy.max((abs(self.alpha[:] - self.alpha_old[:]))/abs(self.alpha[:])) < 1E-2\
+                        and (numpy.max((abs(self.alpha[:] - self.alpha_old[:]))/abs(self.alpha[:])) < 1E-3\
                              or self.first_step):
 
                     self.converged = True
