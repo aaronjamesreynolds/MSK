@@ -44,12 +44,13 @@ class QuasiDiffusionPrecursorConcentration:
 
         # Alpha approximation parameters
         self.alpha = 0.0 * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
-        self.v = 1.0 # neutron velocity
+        self.v = 220000.0 # neutron velocity
         self.beta = 0.007 # delayed neutron fraction
         self.lambda_eff = 0.08 # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = 1*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
-        #elf.dnpc_velocity = 100 *numpy.ones(self.core_mesh_length, dtype=numpy.float64)
-        self.dnpc_velocity = numpy.array(xrange(150, 60, -1))
+        self.dnpc_velocity = 10 *numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.dnpc_velocity = 0*numpy.array(xrange(90, 0, -1))
+
 
         # Set initial values
         self.flux = numpy.zeros((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
@@ -121,8 +122,8 @@ class QuasiDiffusionPrecursorConcentration:
             self.coefficient_matrix_implicit[2, 2] = 1 + self.dt * self.lambda_eff + self.dt * self.dnpc_velocity[position] / self.dx
 
             self.rhs_implicit[0] = self.flux[position, 1] + self.v * self.dt \
-                                   * (self.current[position - 1, 0]) / self.dx
-            self.rhs_implicit[1] = self.current[position, 1] + self.v * self.dt * (self.eddington_factors[position - 1]
+                                   * (self.current[position, 0]) / self.dx
+            self.rhs_implicit[1] = self.current[position + 1, 1] + self.v * self.dt * (self.eddington_factors[position - 1]
                                                                                    * self.flux[position - 1, 0]) / self.dx
             self.rhs_implicit[2] = self.dt * (self.dnpc_velocity[position - 1] *
                                      self.delayed_neutron_precursor_concentration[position - 1, 0]) / self.dx + \
@@ -130,11 +131,12 @@ class QuasiDiffusionPrecursorConcentration:
 
             solutions = numpy.linalg.solve(self.coefficient_matrix_implicit, self.rhs_implicit)
             self.flux[position, 0] = solutions[0]
-            self.current[position, 0] = solutions[1]
+            self.current[position + 1, 0] = solutions[1]
             self.delayed_neutron_precursor_concentration[position, 0] = solutions[2]
 
         self.delayed_neutron_precursor_concentration[:, 1] = self.delayed_neutron_precursor_concentration[:, 0]
         #make first and last cell equal
+        #note: current indices may need to be shifted by +/-1
         #self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
 
 
@@ -147,18 +149,21 @@ class QuasiDiffusionPrecursorConcentration:
 
 if __name__ == "__main__":
 
-    steps = 10
+    steps = 5
     flux_t = numpy.zeros([90, steps+1])
     precursor_t = numpy.zeros([90, steps+1])
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization
     test_moc = moc.StepCharacteristic("test_input.yaml")
-    test_moc.solve(False, False)
+    test_moc.solve(False, True)
     flux_t[:, 0] = test_moc.flux[:, 1]
     precursor_t[:, 0] = test_gray.delayed_neutron_precursor_concentration[:, 0]
     test_moc.converged = False
 
     test_gray.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
                                test_moc.delayed_neutron_precursor_concentration)
+
+    test_gray.implicit_time_solve()  # test if linear system can be solved
+    precursor_t[:, 1] = test_gray.delayed_neutron_precursor_concentration[:, 0]
 
     for iteration in xrange(steps):
         test_gray.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
