@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-# ToDo: (1) normalize to allow for time dynamics (2) make a test
-
 import numpy
 import matplotlib.pyplot as plt
 import input.read as read
@@ -257,6 +255,41 @@ class StepCharacteristic(object):
                  + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
                  + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
+    def solve_consistent(self, single_step=False, verbose=True):
+        print "Performing method of characterisitics solve..."
+
+        self.flux_iterations = 0
+
+        print "----------------DEBUG----------------------"
+        if verbose:
+            print "Iteration: {}".format(self.flux_iterations)
+            print "Alpha: {}".format(self.alpha)
+            print "Flux: {}".format(self.flux[:, 1])
+
+        #while not self.converged:  # flux convergence
+        self.flux_iterations += 1
+
+        self.flux_iteration()  # do a flux iteration
+        self.calculate_eddington_factors()
+        print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
+        if verbose:
+            print "Flux: Absolute relative difference: {}".format(
+                (abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))
+            print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
+        print "-------------------------------------------"
+
+        if numpy.max((abs(self.flux[:, 0] - self.flux[:, 1])) / self.flux[:, 0]) < 1E-4:
+
+            self.converged = True
+            self.flux_t = self.flux[:, 0]
+            print('Converged!')
+
+        else:
+            #self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+            self.iterate_boundary_condition()
+                #solve linear system
+                #put in updated flux, precursor concentration, and alpha to MOC
+
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
 
@@ -273,6 +306,7 @@ class StepCharacteristic(object):
 
             self.flux_iteration()  # do a flux iteration
             self.calculate_eddington_factors()
+
             # Check for convergence
             print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
             if verbose:
