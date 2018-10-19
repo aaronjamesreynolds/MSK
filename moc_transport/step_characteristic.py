@@ -88,15 +88,15 @@ class StepCharacteristic(object):
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux = 0*numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
-        self.flux_t = numpy.zeros((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
-        self.edge_flux = numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
-        self.angular_flux_edge = 10.0*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
+        self.flux = 1.0 * numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux_t = numpy.ones((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
+        self.edge_flux = 0 * numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
+        self.angular_flux_edge = 1*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
                                              dtype=numpy.float64)  # initialize edge angular flux
-        self.angular_flux_center = 10.0*numpy.ones((self.core_mesh_length, len(self.ab)),
+        self.angular_flux_center = 1*numpy.ones((self.core_mesh_length, len(self.ab)),
                                                dtype=numpy.float64)  # initialize center angular flux
         self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
-        self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
+        self.eddington_factors = 1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         # Solver metrics
         self.exit1 = 0  # initialize exit condition
         self.exit2 = 0  # initialize exit condition
@@ -167,7 +167,7 @@ class StepCharacteristic(object):
     def iterate_alpha(self):
 
         for i in xrange(self.core_mesh_length):
-            self.alpha[i] = numpy.log(self.flux[i, 0] / self.flux_t[i]) / self.dt
+            self.alpha[i] = numpy.log(self.flux[i, 1] / self.flux_t[i]) / self.dt
 
     # Propagate angular flux boundary conditions across the problem.
     def flux_iteration_deprecated(self):
@@ -269,6 +269,7 @@ class StepCharacteristic(object):
         #while not self.converged:  # flux convergence
         self.flux_iterations += 1
 
+        #self.iterate_alpha()
         self.flux_iteration()  # do a flux iteration
         self.calculate_eddington_factors()
         print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
@@ -285,10 +286,15 @@ class StepCharacteristic(object):
             print('Converged!')
 
         else:
-            #self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+            self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+
             self.iterate_boundary_condition()
-                #solve linear system
-                #put in updated flux, precursor concentration, and alpha to MOC
+
+            #self.angular_flux_edge = 0 * numpy.ones((self.core_mesh_length + 1, len(self.ab)),
+             #                                       dtype=numpy.float64)  # initialize edge angular flux
+            #self.angular_flux_center = 0 * numpy.ones((self.core_mesh_length, len(self.ab)),
+              #                                       dtype=numpy.float64)
+
 
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."

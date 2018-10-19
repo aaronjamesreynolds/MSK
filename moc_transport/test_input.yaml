@@ -11,6 +11,6 @@ alpha: 0 #initial alpha
 v: 1 #neutron velocity
 beta: 0.007
 lambda_eff: 0.08
-dnp_concentration: 1
+dnp_concentration: 0
 dx: 0.1
 dt: 0.0001
