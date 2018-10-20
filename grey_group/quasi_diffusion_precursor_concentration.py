@@ -49,7 +49,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.lambda_eff = input_data.data.lambda_eff # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = input_data.data.dnp_concentration*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
         self.dnpc_velocity = 10 *numpy.ones(self.core_mesh_length, dtype=numpy.float64)
-        self.dnpc_velocity = 0*numpy.array(xrange(90, 0, -1))
+        self.dnpc_velocity = 1000*numpy.array(xrange(90, 0, -1))
 
 
         # Set initial values
@@ -62,8 +62,10 @@ class QuasiDiffusionPrecursorConcentration:
         self.rhs = numpy.empty(2)
         self.rhs_implicit = numpy.empty(3)
         self.rhs_stationary_implicit = numpy.empty(2)
-        self.linear_system = numpy.zeros([2*self.core_mesh_length + 1, 2*self.core_mesh_length + 1])
-        self.linear_system_solution = numpy.zeros([2*self.core_mesh_length + 1, 2])
+        self.stationary_linear_system = numpy.zeros([2*self.core_mesh_length + 1, 2*self.core_mesh_length + 1])
+        self.stationary_linear_system_solution = numpy.zeros([2*self.core_mesh_length + 1, 2])
+        self.linear_system = numpy.zeros([3 * self.core_mesh_length + 1, 3 * self.core_mesh_length + 1])
+        self.linear_system_solution = numpy.zeros([3 * self.core_mesh_length + 1, 2])
 
 
 
@@ -118,87 +120,8 @@ class QuasiDiffusionPrecursorConcentration:
             self.flux[position, 0] = solutions[0]
             self.delayed_neutron_precursor_concentration[position, 0] = solutions[1]
 
-    def implicit_time_solve(self):
 
-        self.set_initial_conditions()
-
-#        self.current[1,0] = self.flux
-
-        for position in xrange(1, self.core_mesh_length):
-
-            sig_a = self.sig_t[self.material[position]] - self.sig_s[self.material[position]]
-            ave_sig_t = (self.sig_t[self.material[position - 1]] + self.sig_t[self.material[position]])/2
-            self.coefficient_matrix_implicit[0, 0] = 1 + self.v * self.dt * (sig_a - (1 - self.beta) * self.nu[self.material[position]] *
-                                                                    self.sig_f[self.material[position]])
-            self.coefficient_matrix_implicit[0, 1] = self.v * self.dt / self.dx
-            self.coefficient_matrix_implicit[0, 2] = -self.v * self.dt * self.lambda_eff
-            self.coefficient_matrix_implicit[1, 0] = self.v * self.dt * self.eddington_factors[position] / self.dx
-            self.coefficient_matrix_implicit[1, 1] = 1 + self.v * self.dt * ave_sig_t
-            self.coefficient_matrix_implicit[1, 2] = 0
-            self.coefficient_matrix_implicit[2, 0] = -self.dt * self.beta * self.nu[self.material[position]] * self.sig_f[self.material[position]]
-            self.coefficient_matrix_implicit[2, 1] = 0
-            self.coefficient_matrix_implicit[2, 2] = 1 + self.dt * self.lambda_eff + self.dt * self.dnpc_velocity[position] / self.dx
-
-            self.rhs_implicit[0] = self.flux[position, 1] + self.v * self.dt \
-                                   * (self.current[position + 1, 0]) / self.dx
-            self.rhs_implicit[1] = self.current[position, 1] + self.v * self.dt * (self.eddington_factors[position - 1]
-                                                                                   * self.flux[position - 1, 0]) / self.dx
-            self.rhs_implicit[2] = self.dt * (self.dnpc_velocity[position - 1] *
-                                     self.delayed_neutron_precursor_concentration[position - 1, 0]) / self.dx + \
-                                     self.delayed_neutron_precursor_concentration[position, 1]
-
-            solutions = numpy.linalg.solve(self.coefficient_matrix_implicit, self.rhs_implicit)
-            self.flux[position, 0] = solutions[0]
-            self.current[position, 0] = solutions[1]
-            self.delayed_neutron_precursor_concentration[position, 0] = solutions[2]
-
-        #self.delayed_neutron_precursor_concentration[:, 1] = self.delayed_neutron_precursor_concentration[:, 0]
-        #make first and last cell equal
-        #note: current indices may need to be shifted by +/-1
-        #self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
-        self.flux[0, 0] = self.flux[-1, 0]
-        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 0]
-
-    def stationary_implicit_time_solve(self):
-        self.set_initial_conditions()
-
-        for position in xrange(1, self.core_mesh_length):
-
-            sig_a = self.sig_t[self.material[position]] - self.sig_s[self.material[position]]
-            ave_sig_t = (self.sig_t[self.material[position - 1]] + self.sig_t[self.material[position]])/2
-            zeta = 1 + self.v * self.dt * (sig_a - (1 - self.beta) * self.nu[self.material[position]] *
-                                           self.sig_f[self.material[position]] \
-                                           + self.dt * self.beta * self.nu[self.material[position]] \
-                                           * self.sig_f[self.material[position]] * self.lambda_eff \
-                                           / (1 + self.dt * self.lambda_eff))
-
-            self.coefficient_matrix_stationary_implicit[0, 0] = zeta
-            self.coefficient_matrix_stationary_implicit[0, 1] = self.v * self.dt / self.dx
-            self.coefficient_matrix_stationary_implicit[1, 0] = self.v * self.dt * self.eddington_factors[position] / self.dx
-            self.coefficient_matrix_stationary_implicit[1, 1] = 1 + self.v * self.dt * ave_sig_t
-
-            self.rhs_stationary_implicit[0] = self.flux[position, 1] + self.v * self.dt \
-                                   * (self.current[position, 0]) / self.dx \
-                                   + self.delayed_neutron_precursor_concentration[position, 1] * self.dt * self.v\
-                                   * self.lambda_eff / (1 + self.dt*self.lambda_eff)
-
-            self.rhs_stationary_implicit[1] = self.current[position + 1, 1] + self.v * self.dt * (self.eddington_factors[position - 1]
-                                                                                   * self.flux[position - 1, 0]) / self.dx
-            solutions = numpy.linalg.solve(self.coefficient_matrix_stationary_implicit, self.rhs_stationary_implicit)
-            self.flux[position, 0] = solutions[0]
-            self.current[position + 1, 0] = solutions[1]
-            self.delayed_neutron_precursor_concentration[position, 0] \
-                = (self.delayed_neutron_precursor_concentration[position, 1] + self.flux[position, 0] * self.dt \
-                * self.beta * self.nu[self.material[position]] * self.sig_f[self.material[position]]) \
-                  / (1 + self.dt*self.lambda_eff)
-
-    def set_initial_conditions(self):
-
-        self.flux[0, 0] = self.flux[1, 1]
-        self.current[0, 0] = 0
-        self.delayed_neutron_precursor_concentration[0, 0] = self.delayed_neutron_precursor_concentration[-1, 1]
-
-    def build_linear_system(self):
+    def build_stationary_linear_system(self):
 
 
         # BUILD THE LINEAR SYSTEM AND THE SOLUTION WILL COME
@@ -214,9 +137,69 @@ class QuasiDiffusionPrecursorConcentration:
                                            + self.dt * self.beta * self.nu[self.material[position]] \
                                            * self.sig_f[self.material[position]] * self.lambda_eff \
                                            / (1 + self.dt * self.lambda_eff))
+            self.stationary_linear_system[position, position] = zeta
+
+        courant = self.dt*self.v/self.dx
+
+        column = 0
+        for row in range(n + 1, 2*n):
+            self.stationary_linear_system[row, column] = -courant*self.eddington_factors[column]
+            self.stationary_linear_system[row, column + 1] = courant*self.eddington_factors[column]
+            column += 1
+
+        row = 0
+        for column in range(n, 2*n):
+            self.stationary_linear_system[row, column] = -courant
+            self.stationary_linear_system[row, column + 1] = courant
+            row += 1
+
+        position = 0
+        for index in xrange(n+1, 2*n):
+            ave_sig_t = (self.sig_t[self.material[position - 1]] + self.sig_t[self.material[position]]) / 2
+            self.stationary_linear_system[index, index] = 1 + self.dt*self.v*ave_sig_t
+            position += 1
+
+        self.stationary_linear_system[n , n] = 1
+        self.stationary_linear_system[2*n, 2*n] = 1
+
+        # RHS
+
+        self.stationary_linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1] \
+                                                + self.dt*self.v*self.lambda_eff/ (1+ self.dt*self.v*self.lambda_eff)\
+                                              * self.delayed_neutron_precursor_concentration[:,1])
+        self.stationary_linear_system_solution[n:, 1] = numpy.array(self.current[:, 1])
+
+        #solve!
+        self.stationary_linear_system_solution[:, 0] = numpy.linalg.solve(self.stationary_linear_system, self.stationary_linear_system_solution[:, 1])
+        self.flux[:, 0] =  self.stationary_linear_system_solution[0:n, 0]
+        self.current[:, 0] = self.stationary_linear_system_solution[n:, 0]
+
+        #obtain delayed neutron precursor concentration
+        for i in range(n):
+            self.delayed_neutron_precursor_concentration[i, 0] = (self.delayed_neutron_precursor_concentration[i, 1] +\
+                                                                  self.flux[i, 0]*self.dt*self.beta*\
+                                                                  self.nu[self.material[i]] * \
+                                                                  self.sig_f[self.material[i]]) / (1 + self.dt*self.lambda_eff)
+
+    def build_linear_system(self):
+
+
+        # BUILD THE LINEAR SYSTEM AND THE SOLUTION WILL COME
+        # LHS
+        n = self.core_mesh_length
+
+        # zeroth moment flux terms
+        for position in range(n):
+
+            sig_a = self.sig_t[self.material[position]] - self.sig_s[self.material[position]]
+            ave_sig_t = (self.sig_t[self.material[position - 1]] + self.sig_t[self.material[position]]) / 2
+            zeta = 1 + self.v * self.dt * (sig_a - (1 - self.beta) * self.nu[self.material[position]] *
+                                           self.sig_f[self.material[position]])
             self.linear_system[position, position] = zeta
 
         courant = self.dt*self.v/self.dx
+
+        # qd flux terms
 
         column = 0
         for row in range(n + 1, 2*n):
@@ -224,12 +207,21 @@ class QuasiDiffusionPrecursorConcentration:
             self.linear_system[row, column + 1] = courant*self.eddington_factors[column]
             column += 1
 
+        # precursor equation flux terms
+        column = 1
+        for row in range(2*n + 2, 3*n+1):
+            self.linear_system[row, column] = -self.dt*self.beta*self.nu[self.material[column]]\
+                                              *self.sig_f[self.material[column]]
+            column += 1
+
+        # zeroth moment current terms
         row = 0
         for column in range(n, 2*n):
             self.linear_system[row, column] = -courant
             self.linear_system[row, column + 1] = courant
             row += 1
 
+        # qd current terms
         position = 0
         for index in xrange(n+1, 2*n):
             ave_sig_t = (self.sig_t[self.material[position - 1]] + self.sig_t[self.material[position]]) / 2
@@ -239,32 +231,51 @@ class QuasiDiffusionPrecursorConcentration:
         self.linear_system[n , n] = 1
         self.linear_system[2*n, 2*n] = 1
 
+        # zeroth moment precursor terms
+
+        row = 0
+        for column in range(2 * n + 1, 3 * n + 1):
+            self.linear_system[row, column] = -self.v * self.lambda_eff
+            row += 1
+
+        # precursor equation precursor terms
+
+        position = 1
+        self.linear_system[2*n + 1, 2*n + 1] = 1
+        for index in range(2*n + 2, 3 * n + 1):
+            self.linear_system[index, index - 1] = -self.dnpc_velocity[position - 1] * self.dt / self.dx
+            self.linear_system[index, index] = 1 + self.dnpc_velocity[position] * self.dt / self.dx + self.dt \
+                                               * self.lambda_eff
+            position += 1
+
+
+
         # RHS
 
-        self.linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1] \
-                                                + self.dt*self.v*self.lambda_eff/ (1+ self.dt*self.v*self.lambda_eff)\
-                                              * self.delayed_neutron_precursor_concentration[:,1])
-        self.linear_system_solution[n:, 1] = numpy.array(self.current[:, 1])
+        self.linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1])
+        self.linear_system_solution[n:2*n+1, 1] = numpy.array(self.current[:, 1])
+        self.linear_system_solution[2*n+1:, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1])
+        # periodic boundary condition on precursor concentration
+        self.linear_system_solution[2*n+1, 1] = numpy.array(self.delayed_neutron_precursor_concentration[-1, 1])
 
         #solve!
         self.linear_system_solution[:, 0] = numpy.linalg.solve(self.linear_system, self.linear_system_solution[:, 1])
-        self.flux[:, 0] =  self.linear_system_solution[0:n, 0]
-        self.current[:, 0] = self.linear_system_solution[n:, 0]
 
-        #obtain delayed neutron precursor concentration
-        for i in range(n):
-            self.delayed_neutron_precursor_concentration[i, 0] = (self.delayed_neutron_precursor_concentration[i, 1] +\
-                                                                  self.flux[i, 0]*self.dt*self.beta*\
-                                                                  self.nu[self.material[i]] * \
-                                                                  self.sig_f[self.material[i]]) / (1 + self.dt*self.lambda_eff)
+        #Assign fluxes!
+        self.flux[:, 0] = self.linear_system_solution[0:n, 0]
+        self.current[:, 0] = self.linear_system_solution[n:2*n +1, 0]
+        self.delayed_neutron_precursor_concentration[:, 0] = self.linear_system_solution[2*n + 1:, 0]
+
 
 if __name__ == "__main__":
 
-    steps = 20
+    steps = 10
     flux_t = numpy.zeros([90, steps+1])
     precursor_t = numpy.zeros([90, steps+1])
 
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization
+    #test_gray.build_stationary_linear_system()
+    #test_gray.build_linear_system()
     test_moc = moc.StepCharacteristic("test_input.yaml")
 
     #test_moc.solve_consistent(False, True)
