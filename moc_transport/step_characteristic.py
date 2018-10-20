@@ -166,6 +166,8 @@ class StepCharacteristic(object):
     """ Iterate on alpha based on old and new scalar flux """
     def iterate_alpha(self):
 
+        self.alpha_old = numpy.array(self.alpha)
+
         for i in xrange(self.core_mesh_length):
             self.alpha[i] = numpy.log(self.flux[i, 1] / self.flux_t[i]) / self.dt
 
@@ -211,7 +213,7 @@ class StepCharacteristic(object):
 
     def flux_iteration(self):
 
-        self.calculate_normalized_source()
+        self.calculate_source()
 
         for z in xrange(5, 10):
             for i in xrange(self.core_mesh_length):
@@ -245,7 +247,7 @@ class StepCharacteristic(object):
 
         self.calculate_scalar_flux()
 
-    def calculate_normalized_source(self):
+    def calculate_source(self):
 
         self.q_old = numpy.array(self.q)
 
@@ -255,6 +257,7 @@ class StepCharacteristic(object):
                  + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
                  + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
+    """Solver used in conjunction with grey_group solver. Performs a single transport sweep"""
     def solve_consistent(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
 
@@ -266,10 +269,7 @@ class StepCharacteristic(object):
             print "Alpha: {}".format(self.alpha)
             print "Flux: {}".format(self.flux[:, 1])
 
-        #while not self.converged:  # flux convergence
         self.flux_iterations += 1
-
-        #self.iterate_alpha()
         self.flux_iteration()  # do a flux iteration
         self.calculate_eddington_factors()
         print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
@@ -287,15 +287,11 @@ class StepCharacteristic(object):
 
         else:
             self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
-
             self.iterate_boundary_condition()
 
-            #self.angular_flux_edge = 0 * numpy.ones((self.core_mesh_length + 1, len(self.ab)),
-             #                                       dtype=numpy.float64)  # initialize edge angular flux
-            #self.angular_flux_center = 0 * numpy.ones((self.core_mesh_length, len(self.ab)),
-              #                                       dtype=numpy.float64)
 
 
+    """Solve a single time step. [NOT USED]"""
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
 

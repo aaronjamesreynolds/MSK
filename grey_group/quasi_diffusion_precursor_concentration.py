@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-# ToDo: (3) form linear system (4) solve linear system | DONE
-# ToDo: (5) fix time stepping
+# ToDo: make a super class encompassing grey_group and step_characteristic
+# ToDo: comment
 
 import numpy
 import matplotlib.pyplot as plt
@@ -66,8 +66,6 @@ class QuasiDiffusionPrecursorConcentration:
         self.stationary_linear_system_solution = numpy.zeros([2*self.core_mesh_length + 1, 2])
         self.linear_system = numpy.zeros([3 * self.core_mesh_length + 1, 3 * self.core_mesh_length + 1])
         self.linear_system_solution = numpy.zeros([3 * self.core_mesh_length + 1, 2])
-
-
 
         # Solver metrics
         self.exit1 = 0  # initialize exit condition
@@ -269,7 +267,7 @@ class QuasiDiffusionPrecursorConcentration:
 
 if __name__ == "__main__":
 
-    steps = 10
+    steps = 20
     flux_t = numpy.zeros([90, steps+1])
     precursor_t = numpy.zeros([90, steps+1])
 
@@ -303,9 +301,15 @@ if __name__ == "__main__":
             if numpy.max((abs(last_flux - test_gray.flux[:, 0]) / test_gray.flux[:, 0])) < 1E-6\
                 and numpy.max((abs(last_current - test_gray.current[:, 0]))) < 1E-6 \
                 and numpy.max((abs(last_dnpc - test_gray.delayed_neutron_precursor_concentration[:, 0]))) < 1E-6:
-                converged = True
+
                 test_moc.iterate_alpha()
-                test_moc.flux_t = test_gray.flux[:, 0]
+
+                if numpy.max((abs(test_moc.alpha - test_moc.alpha))) < 1E-4:
+
+                    converged = True
+                    test_moc.flux_t = test_gray.flux[:, 0]
+
+
             else:
                 test_moc.update_variables(test_gray.flux[:, 0], test_gray.delayed_neutron_precursor_concentration[:, 0])
                 test_moc.iterate_alpha()
