@@ -12,5 +12,7 @@ v: 1 #neutron velocity
 beta: 0.007
 lambda_eff: 0.08
 dnp_concentration: 0
+dnp_velocity_lhs: 0
+dnp_velocity_rhs: 400
 dx: 0.1
 dt: 0.0001

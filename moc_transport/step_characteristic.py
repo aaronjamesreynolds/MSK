@@ -171,45 +171,7 @@ class StepCharacteristic(object):
         for i in xrange(self.core_mesh_length):
             self.alpha[i] = numpy.log(self.flux[i, 1] / self.flux_t[i]) / self.dt
 
-    # Propagate angular flux boundary conditions across the problem.
-    def flux_iteration_deprecated(self):
-        for z in xrange(5, 10):
-            for i in xrange(self.core_mesh_length):
-                xi = (self.sig_t[self.material[i]] + self.alpha[i] / self.v) / self.ab[z]  # integrating factor
-
-                if xi < 10**-4:
-                    xi = 10**-4 / self.ab[z]
-
-                q = (self.sig_s[self.material[i]] * self.flux[i, 1]
-                     + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
-                     + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])  # source term
-
-                self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
-                    + (q / (2 * self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
-
-                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * self.ab[z])
-                                                                         + self.angular_flux_edge[i, z]
-                                                                         - self.angular_flux_edge[i + 1, z])
-        for z in xrange(0, 5):
-            for i in range(self.core_mesh_length, 0, -1):
-                xi = (self.sig_t[self.material[i-1]] + self.alpha[i-i] / self.v) / numpy.abs(self.ab[z])  # integrating factor
-
-                if xi < 10**-4:
-                    xi = 10**-4 / numpy.abs(self.ab[z])
-
-                q = (self.sig_s[self.material[i-1]] * self.flux[i-1, 1]
-                     + (1 - self.beta) * self.nu[self.material[i-1]] * self.sig_f[self.material[i-1]] * self.flux[i - 1, 1]
-                     + self.lambda_eff * self.delayed_neutron_precursor_concentration[i-1])  # source term
-
-                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
-                    + (q / (2 * numpy.abs(self.ab[z]) * xi)) * (1 - numpy.exp(-xi * self.dx))
-
-                self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (q * self.dx / (2 * numpy.abs(self.ab[z]))
-                                                                             + self.angular_flux_edge[i, z]
-                                                                              - self.angular_flux_edge[i - 1, z])
-        self.calculate_scalar_flux()
-
-        # Propagate angular flux boundary conditions across the problem.
+    """ Propagate angular flux boundary conditions across the problem."""
 
     def flux_iteration(self):
 
@@ -247,6 +209,8 @@ class StepCharacteristic(object):
 
         self.calculate_scalar_flux()
 
+    """Calculate the source due to fission, scattering, and delayed neutron precursor decay."""
+
     def calculate_source(self):
 
         self.q_old = numpy.array(self.q)
@@ -257,7 +221,7 @@ class StepCharacteristic(object):
                  + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
                  + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
 
-    """Solver used in conjunction with grey_group solver. Performs a single transport sweep"""
+    """Solver used in conjunction with grey_group solver. Performs a single transport sweep."""
     def solve(self, single_step=False, verbose=True):
         print "Performing method of characterisitics solve..."
 
