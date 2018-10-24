@@ -14,6 +14,7 @@ class QuasiDiffusionPrecursorConcentration:
 
     def __init__(self, input_file_name):
 
+
         # Quadrature data
         self.ab = numpy.array([-0.9739065285171717, -0.8650633666889845, -0.6794095682990244, -0.4333953941292472,
                                -0.1488743389816312, 0.1488743389816312, 0.4333953941292472, 0.6794095682990244,
@@ -38,9 +39,7 @@ class QuasiDiffusionPrecursorConcentration:
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        #self.dx = 1.0  # discretization in length
         self.dmu = 2 / len(self.ab)  # discretization in angle
-        #self.dt = 0.0001  # discretization in time
 
         # Alpha approximation parameters
         self.alpha = input_data.data.alpha * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
@@ -66,13 +65,6 @@ class QuasiDiffusionPrecursorConcentration:
         self.stationary_linear_system_solution = numpy.zeros([2*self.core_mesh_length + 1, 2])
         self.linear_system = numpy.zeros([3 * self.core_mesh_length + 1, 3 * self.core_mesh_length + 1])
         self.linear_system_solution = numpy.zeros([3 * self.core_mesh_length + 1, 2])
-
-        # Solver metrics
-        self.exit1 = 0  # initialize exit condition
-        self.exit2 = 0  # initialize exit condition
-        self.flux_iterations = 0  # iteration counter
-        self.source_iterations = 0  # iteration counter
-
 
     """ Update neutron flux, neutron current, Eddington factors, and delayed neutron precursor concentration variables. """
     def update_variables(self, _flux, _current, _eddington_factors, _delayed_neutron_precursor_concentration):
@@ -272,11 +264,7 @@ if __name__ == "__main__":
     precursor_t = numpy.zeros([90, steps+1])
 
     test_gray = QuasiDiffusionPrecursorConcentration("test_input.yaml") # test for initialization
-    #test_gray.build_stationary_linear_system()
-    #test_gray.build_linear_system()
     test_moc = moc.StepCharacteristic("test_input.yaml")
-
-    #test_moc.solve_consistent(False, True)
 
     flux_t[:, 0] = test_moc.flux[:, 1]
     precursor_t[:, 0] = test_gray.delayed_neutron_precursor_concentration[:, 0]
@@ -284,9 +272,7 @@ if __name__ == "__main__":
     test_gray.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
                                test_moc.delayed_neutron_precursor_concentration)
 
-    #test_gray.implicit_time_solve()  # test if linear system can be solved
     precursor_t[:, 1] = test_gray.delayed_neutron_precursor_concentration[:, 0]
-    #test_moc.solve_consistent(False, True)
 
     for iteration in xrange(steps):
         converged = False
@@ -296,7 +282,6 @@ if __name__ == "__main__":
             last_current = numpy.array(test_gray.current[:, 0])
             last_dnpc = numpy.array(test_gray.delayed_neutron_precursor_concentration[:, 0])
 
-            #test_gray.implicit_time_solve()
             test_gray.build_linear_system()
             if numpy.max((abs(last_flux - test_gray.flux[:, 0]) / test_gray.flux[:, 0])) < 1E-6\
                 and numpy.max((abs(last_current - test_gray.current[:, 0]))) < 1E-6 \
@@ -313,7 +298,7 @@ if __name__ == "__main__":
             else:
                 test_moc.update_variables(test_gray.flux[:, 0], test_gray.delayed_neutron_precursor_concentration[:, 0])
                 test_moc.iterate_alpha()
-                test_moc.solve_consistent(False, True)
+                test_moc.solve(False, True)
 
 
         test_gray.flux[:, 1] = test_gray.flux[:, 0]
@@ -323,8 +308,6 @@ if __name__ == "__main__":
         flux_t[:, iteration+1] = test_moc.flux[:, 1]
         precursor_t[:, iteration+1] = test_gray.delayed_neutron_precursor_concentration[:, 0]
 
-
-    # test_moc.results()
     x = numpy.arange(0, test_gray.core_mesh_length)
     for iteration in xrange(steps+1):
         # plt.plot(x, test_gray.flux[:, 0])
