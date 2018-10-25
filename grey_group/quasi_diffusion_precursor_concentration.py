@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # ToDo: comment
+# ToDo: make convergence measurements relative
 
 import numpy
 import matplotlib.pyplot as plt
@@ -316,29 +317,38 @@ class QuasiDiffusionPrecursorConcentration:
 
         # plot flux at each time step
         x = numpy.arange(0, self.core_mesh_length)
+        ax = plt.subplot(111)
         for iteration in xrange(steps + 1):
-            # plt.plot(x, test_gray.flux[:, 0])
-            plt.plot(x, flux_t[:, iteration], label= "t = " + str(self.dt * iteration))
-        plt.grid(True)
+            ax.plot(x, flux_t[:, iteration], label= "t = " + str(self.dt * iteration))
+        ax.grid(True)
         plt.xlabel('Position [cm]')
         plt.ylabel('Flux [s^-1 cm^-2]')
         plt.title('Grey Group: Neutron Flux')
-        plt.legend()
+
+        # Shrink current axis by 20%
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # Put a legend to the right of the current axis
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
         # plot precursor concentration at each time step
-        x = numpy.arange(0, self.core_mesh_length)
+        ax = plt.subplot(111)
         for iteration in xrange(steps + 1):
-            plt.plot(x, precursor_t[:, iteration], label="t = " + str(self.dt * iteration))
-        plt.grid(True)
-        plt.legend()
+            ax.plot(x, precursor_t[:, iteration], label="t = " + str(self.dt * iteration))
+        ax.grid(True)
         plt.xlabel('Position [cm]')
         plt.ylabel('Concentration [cm^-3]')
         plt.title('Grey Group: Precursor Concentration')
+        # Shrink current axis by 20%
+        box = ax.get_position()
+        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # Put a legend to the right of the current axis
+        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
 
 if __name__ == "__main__":
 
     test = QuasiDiffusionPrecursorConcentration("test_input.yaml")  # test for initialization
-    test.solve_transient(20)
+    test.solve_transient(50)
