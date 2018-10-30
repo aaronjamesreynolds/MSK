@@ -307,7 +307,10 @@ class QuasiDiffusionPrecursorConcentration:
 
                     test_moc.iterate_alpha()
 
-                    if numpy.max((abs((test_moc.alpha - test_moc.alpha_old)/test_moc.alpha))) < 1E-4:
+                    # Calculate difference between previous and present alpha
+                    alpha_diff = abs(test_moc.alpha - test_moc.alpha_old)
+
+                    if numpy.max(alpha_diff/abs(test_moc.alpha)) < 1E-4:
                         converged = True
                         test_moc.flux_t = self.flux[:, 0]
 
