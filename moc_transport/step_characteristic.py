@@ -97,6 +97,8 @@ class StepCharacteristic(object):
                                                dtype=numpy.float64)  # initialize center angular flux
         self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
         self.eddington_factors = 1*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+        self.eddington_factors_old = 0*numpy.ones(self.core_mesh_length, dtype=numpy.float64)
+
         # Solver metrics
         self.exit1 = 0  # initialize exit condition
         self.exit2 = 0  # initialize exit condition
@@ -145,6 +147,7 @@ class StepCharacteristic(object):
     """ Calculates eddington factors (done a single time after problem is converged) """
     def calculate_eddington_factors(self):
 
+        self.eddington_factors_old = self.eddington_factors
         self.eddington_factors = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)
 
         for i in xrange(self.core_mesh_length):

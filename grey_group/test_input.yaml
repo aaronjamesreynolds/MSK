@@ -13,10 +13,10 @@ cells: 90
 #material: [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0 ,0]
 material: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
 #material: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0]
-alpha: 0 #initial alpha
+alpha: 1 #initial alpha
 v: 220000 #neutron velocity
 beta: 0.007
-lambda_eff: 0.8
+lambda_eff: 0.08
 dnp_concentration: 0.0
 dnp_velocity_lhs: 0
 dnp_velocity_rhs: 0

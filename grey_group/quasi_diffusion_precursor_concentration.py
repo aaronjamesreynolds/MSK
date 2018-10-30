@@ -49,6 +49,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.beta = input_data.data.beta # delayed neutron fraction
         self.lambda_eff = input_data.data.lambda_eff # delayed neutron precursor decay constant
         self.delayed_neutron_precursor_concentration = input_data.data.dnp_concentration*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
+        self.delayed_neutron_precursor_concentration[:, 0] = numpy.ones(self.core_mesh_length)
         self.dnpc_velocity = 10 *numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.dnpc_velocity = numpy.linspace(input_data.data.dnp_velocity_lhs, input_data.data.dnp_velocity_rhs, self.core_mesh_length)
 
@@ -56,6 +57,7 @@ class QuasiDiffusionPrecursorConcentration:
         # Set initial values
         self.flux = numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
         self.current = numpy.zeros((self.core_mesh_length + 1, 2), dtype=numpy.float64)
+        self.current[:,1] = numpy.ones(self.core_mesh_length + 1)
         self.eddington_factors = 1*numpy.array(numpy.ones(self.core_mesh_length, dtype=numpy.float64))
         self.coefficient_matrix = numpy.empty([2, 2])
         self.coefficient_matrix_implicit = numpy.empty([3, 3])
@@ -276,7 +278,7 @@ class QuasiDiffusionPrecursorConcentration:
 
         # Record initial conditions
         flux_t[:, 0] = test_moc.flux[:, 1]
-        precursor_t[:, 0] = self.delayed_neutron_precursor_concentration[:, 0]
+        precursor_t[:, 0] = self.delayed_neutron_precursor_concentration[:, 1]
 
         self.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
                                    test_moc.delayed_neutron_precursor_concentration)
@@ -290,14 +292,19 @@ class QuasiDiffusionPrecursorConcentration:
                 last_dnpc = numpy.array(self.delayed_neutron_precursor_concentration[:, 0])
 
                 self.solve_linear_system()
-                if numpy.max((abs(last_flux - self.flux[:, 0]) / self.flux[:, 0])) < 1E-6 \
-                        and numpy.max((abs(last_current - self.current[:, 0]))) < 1E-6 \
-                        and numpy.max(
-                    (abs(last_dnpc - self.delayed_neutron_precursor_concentration[:, 0]))) < 1E-6:
+
+                flux_diff = abs(last_flux - self.flux[:, 0])
+                current_diff = abs(last_current - self.current[:, 0])
+                dnpc_diff = abs(last_dnpc - self.delayed_neutron_precursor_concentration[:, 0])
+                eddington_diff = abs(test_moc.eddington_factors - test_moc.eddington_factors_old)
+
+                if numpy.max(flux_diff / abs(self.flux[:, 0])) < 1E-6 and numpy.max(current_diff) < 1E-12 \
+                        and numpy.max(dnpc_diff) < 1E-12:
 
                     test_moc.iterate_alpha()
 
-                    if numpy.max((abs(test_moc.alpha - test_moc.alpha))) < 1E-4:
+                    if numpy.max((abs((test_moc.alpha - test_moc.alpha_old)/test_moc.alpha))) < 1E-4 and \
+                            numpy.max((abs((test_moc.eddington_factors - test_moc.eddington_factors_old)/test_moc.eddington_factors))) < 1E-4:
                         converged = True
                         test_moc.flux_t = self.flux[:, 0]
 
@@ -351,4 +358,4 @@ class QuasiDiffusionPrecursorConcentration:
 if __name__ == "__main__":
 
     test = QuasiDiffusionPrecursorConcentration("test_input.yaml")  # test for initialization
-    test.solve_transient(50)
+    test.solve_transient(5)
