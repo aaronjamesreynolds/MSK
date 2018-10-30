@@ -287,24 +287,27 @@ class QuasiDiffusionPrecursorConcentration:
             converged = False
             while not converged:
                 self.update_eddington(test_moc.eddington_factors)
+                # Store previous solutions to evaluate convergence
                 last_flux = numpy.array(self.flux[:, 0])
                 last_current = numpy.array(self.current[:, 0])
                 last_dnpc = numpy.array(self.delayed_neutron_precursor_concentration[:, 0])
 
                 self.solve_linear_system()
 
+                # Calculate difference between previous and present solutions
                 flux_diff = abs(last_flux - self.flux[:, 0])
-                current_diff = abs(last_current - self.current[:, 0])
+                current_diff = abs(last_current[1:-1] - self.current[1:-1, 0])
                 dnpc_diff = abs(last_dnpc - self.delayed_neutron_precursor_concentration[:, 0])
                 eddington_diff = abs(test_moc.eddington_factors - test_moc.eddington_factors_old)
 
-                if numpy.max(flux_diff / abs(self.flux[:, 0])) < 1E-6 and numpy.max(current_diff) < 1E-12 \
-                        and numpy.max(dnpc_diff) < 1E-12:
+                if numpy.max(flux_diff / abs(self.flux[:, 0])) < 1E-6 \
+                        and numpy.max(current_diff / abs(self.current[1:-1, 0])) < 1E-6 \
+                        and numpy.max(dnpc_diff) < 1E-10\
+                        and numpy.max(eddington_diff / test_moc.eddington_factors) < 1E-6:
 
                     test_moc.iterate_alpha()
 
-                    if numpy.max((abs((test_moc.alpha - test_moc.alpha_old)/test_moc.alpha))) < 1E-4 and \
-                            numpy.max((abs((test_moc.eddington_factors - test_moc.eddington_factors_old)/test_moc.eddington_factors))) < 1E-4:
+                    if numpy.max((abs((test_moc.alpha - test_moc.alpha_old)/test_moc.alpha))) < 1E-4:
                         converged = True
                         test_moc.flux_t = self.flux[:, 0]
 
