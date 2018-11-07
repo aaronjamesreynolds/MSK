@@ -74,7 +74,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.psi_0_mms = 1  # constant flux coefficient
         self.C_0_mms = 1  # constant precursor coefficient
         self.q_z_mms = numpy.zeros((self.core_mesh_length, 1), dtype=numpy.float64)
-        self.q_q_mms = numpy.zeros((self.core_mesh_length, 1), dtype=numpy.float64)
+        self.q_q_mms = numpy.zeros((self.core_mesh_length + 1, 1), dtype=numpy.float64)
         self.q_p_mms = numpy.zeros((self.core_mesh_length, 1), dtype=numpy.float64)
         self.a = 100  # where a*pi is the velocity on the LHS
 
@@ -274,7 +274,7 @@ class QuasiDiffusionPrecursorConcentration:
 
 
     """Solver for method of manufactured solutions"""
-    def solve_linear_system_mms(self):
+    def solve_linear_system_mms(self,t):
 
         # BUILD THE LINEAR SYSTEM AND THE SOLUTION WILL COME
         # LHS
@@ -344,13 +344,14 @@ class QuasiDiffusionPrecursorConcentration:
 
         # RHS
 
-        self.calc_q_z_mms()
-        self.calc_q_q_mms()
-        self.calc_q_p_mms()
+        self.calc_q_z_mms(t)
+        self.calc_q_q_mms(t)
+        self.calc_q_p_mms(t)
 
-        self.linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1] + self.calc_q_z_mms())
-        self.linear_system_solution[n:2*n+1, 1] = numpy.array(self.current[:, 1] + self.calc_q_q_mms())
-        self.linear_system_solution[2*n+1:, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1]) + self
+        self.linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1] + self.q_z_mms[:, 0])
+        self.linear_system_solution[n:2*n+1, 1] = numpy.array(self.current[:, 1] + self.q_q_mms[:, 0])
+        self.linear_system_solution[2*n+1:, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1] \
+                                                             + self.q_p_mms[:, 0])
         # periodic boundary condition on precursor concentration
         self.linear_system_solution[2*n+1, 1] = numpy.array(self.delayed_neutron_precursor_concentration[-1, 1])
 
@@ -461,18 +462,16 @@ class QuasiDiffusionPrecursorConcentration:
     def solve_transient_mms(self, steps):
 
         # Initialize arrays to store transient solutions
-        flux_t = numpy.zeros([90, steps + 1])
-        precursor_t = numpy.zeros([90, steps + 1])
+        flux_t = numpy.zeros([20, steps + 1])
+        precursor_t = numpy.zeros([20, steps + 1])
 
         # Initialize a StepCharacteristic object
         test_moc = moc.StepCharacteristic(self.input_file_name)
 
         # Initial flux and precursor concentration
         for position in xrange(self.core_mesh_length):
-            self.flux[1, position] = self.psi_0_mms * numpy.sin(position*self.dx)
-            self.delayed_neutron_precursor_concentration[1, position] = self.C_0_mms * numpy.sin(position * self.dx)
-
-
+            self.flux[position, 1] = self.psi_0_mms * numpy.sin(position*self.dx)
+            self.delayed_neutron_precursor_concentration[position, 1] = self.C_0_mms * numpy.sin(position * self.dx)
 
         # Record initial conditions
         flux_t[:, 0] = test_moc.flux[:, 1]
@@ -568,12 +567,12 @@ class QuasiDiffusionPrecursorConcentration:
             A = 2*self.psi_0_mms*((1/self.v) + sig_a - (1-self.beta)*self.nu[self.material[position]]\
                                   *self.sig_f[self.material[position]])
             B = self.C_0_mms*self.lambda_eff
-            self.q_z_mms[position] = numpy.sin(self.dx * position) * numpy.exp(t) * (A + B)
+            self.q_z_mms[position, 0] = numpy.sin(self.dx * position) * numpy.exp(t) * (A + B)
 
     def calc_q_q_mms(self, t):
 
-        for position in xrange(self.core_mesh_length):
-            self.q_q_mms[position] = (1 / 3) * numpy.cos(self.dx * position) * numpy.exp(t)
+        for position in xrange(self.core_mesh_length+1):
+            self.q_q_mms[position, 0] = (1 / 3) * numpy.cos(self.dx * position) * numpy.exp(t)
 
     def calc_q_p_mms(self,t):
 
@@ -581,7 +580,7 @@ class QuasiDiffusionPrecursorConcentration:
             A = self.lambda_eff*self.C_0_mms - 2 * self.beta * self.nu[self.material[position]]\
                * self.sig_f[self.material[position]]
             B = self.a*(numpy.pi - self.dx*position)*self.C_0_mms
-            self.q_p_mms[position] = A * numpy.sin(self.dx * position) * numpy.exp(t)\
+            self.q_p_mms[position, 0] = A * numpy.sin(self.dx * position) * numpy.exp(t)\
                                      + B * numpy.cos(self.dx * position) * numpy.exp(t)
 
 if __name__ == "__main__":

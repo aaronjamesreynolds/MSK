@@ -1,0 +1,24 @@
+--- !InputData
+#Flat data
+#sig_t: [7.0, 0.7, 7.0]
+#sig_s: [4.0, 0.4, 4.0]
+#sig_f: [3.0, 0.3, 3.0]
+#nu: [1.005, 2.0, 1.005]
+
+sig_t: [7.0, 0.7, 7.0]
+sig_s: [3.0, 0.4, 3.0]
+sig_f: [4.0, 0.3, 4.0]
+nu: [1.001, 2.0, 1.001]
+cells: 20
+#material: [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0 ,0]
+material: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]
+#material: [0, 0, 1, 1, 0, 0, 1, 1, 0, 0]
+alpha: 1 #initial alpha
+v: 220000 #neutron velocity
+beta: 0.007
+lambda_eff: 0.08
+dnp_concentration: 0.0
+dnp_velocity_lhs: 4000
+dnp_velocity_rhs: 3000
+dx: 0.007854
+dt: 0.000002
