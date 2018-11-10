@@ -16,7 +16,7 @@ material: [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 
 alpha: 1 #initial alpha
 v: 220000 #neutron velocity
 beta: 0.007
-lambda_eff: 0.08
+lambda_eff: 0.008
 dnp_concentration: 0.0
 dnp_velocity_lhs: 4000
 dnp_velocity_rhs: 3000
