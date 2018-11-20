@@ -52,6 +52,8 @@ class QuasiDiffusionPrecursorConcentration:
         self.delayed_neutron_precursor_concentration[:, 0] = numpy.ones(self.core_mesh_length)
         self.dnpc_velocity = 10 * numpy.ones(self.core_mesh_length, dtype=numpy.float64)
         self.dnpc_velocity = numpy.linspace(input_data.data.dnp_velocity_lhs, input_data.data.dnp_velocity_rhs, self.core_mesh_length)
+        self.dnpc_v_edge = numpy.linspace(8000, 4000, self.core_mesh_length + 1)
+
 
 
         # Set initial values
@@ -80,7 +82,7 @@ class QuasiDiffusionPrecursorConcentration:
         self.a = 1273.239544  # where a*pi is the average velocity in the first cell
         #self.a = 0
 
-    """ Update neutron flux, neutron current, Eddington factors, and delayed neutron precursor concentration variables. """
+    """ Update neutron flux, neutron current, Eddington factors, and delayed neutron precursor concentration variables."""
     def update_variables(self, _flux, _current, _eddington_factors, _delayed_neutron_precursor_concentration):
 
         self.flux[:, 1] = _flux
@@ -126,8 +128,8 @@ class QuasiDiffusionPrecursorConcentration:
             self.flux[position, 0] = solutions[0]
             self.delayed_neutron_precursor_concentration[position, 0] = solutions[1]
 
-    """ Solve the linear system of the zero moment neutron transport equation, quasi diffusion equation, and precursor
-        concentration equation (with no precursor drift). """
+    """Solve the linear system of the zero moment neutron transport equation, quasi diffusion equation, and precursor
+        concentration equation (with no precursor drift)."""
     def solve_stationary_linear_system(self):
 
 
@@ -188,8 +190,8 @@ class QuasiDiffusionPrecursorConcentration:
                                                                   self.nu[self.material[i]] * \
                                                                   self.sig_f[self.material[i]]) / (1 + self.dt*self.lambda_eff)
 
-    """ Solve the linear system of the zero moment neutron transport equation, quasi diffusion equation, and precursor
-    concentration equation (with a drift term). """
+    """Solve the linear system of the zero moment neutron transport equation, quasi diffusion equation, and precursor
+    concentration equation (with a drift term)."""
     def solve_linear_system(self):
 
         # BUILD THE LINEAR SYSTEM AND THE SOLUTION WILL COME
@@ -274,8 +276,8 @@ class QuasiDiffusionPrecursorConcentration:
         self.current[:, 0] = self.linear_system_solution[n:2*n +1, 0]
         self.delayed_neutron_precursor_concentration[:, 0] = self.linear_system_solution[2*n + 1:, 0]
 
-    """ Solve the transient problem by taking the Eddington factors from a StepCharacteristic solve and putting them
-     into a linear system of equations. """
+    """Solve the transient problem by taking the Eddington factors from a StepCharacteristic solve and putting them
+     into a linear system of equations."""
     def solve_transient(self, steps):
 
         # Initialize arrays to store transient solutions
@@ -369,7 +371,7 @@ class QuasiDiffusionPrecursorConcentration:
         ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.show()
 
-    """Solver for method of manufactured solutions"""
+    """Solver for method of manufactured solutions."""
     def solve_linear_system_mms(self, t):
 
         # BUILD THE LINEAR SYSTEM AND THE SOLUTION WILL COME
@@ -391,6 +393,8 @@ class QuasiDiffusionPrecursorConcentration:
         for row in range(n + 1, 2*n):
             self.linear_system[row, column] = -courant*self.eddington_factors[column]
             self.linear_system[row, column + 1] = courant*self.eddington_factors[column+1]
+            self.linear_system[row, column] = 0 # debugging
+            self.linear_system[row, column + 1] = 0 # debugging
             column += 1
 
         # precursor equation flux terms
@@ -414,7 +418,7 @@ class QuasiDiffusionPrecursorConcentration:
         for index in xrange(n+1, 2*n):
             ave_sig_t = (self.sig_t[self.material[position - 1]] + self.sig_t[self.material[position]]) / 2
             self.linear_system[index, index] = 1 + self.dt*self.v*ave_sig_t
-            #self.linear_system[index, index] = 0 # debug
+            #self.linear_system[index, index] = 1 # debugging
             position += 1
 
         self.linear_system[n , n] = 1 # boundary condition
@@ -425,23 +429,38 @@ class QuasiDiffusionPrecursorConcentration:
         row = 0
         for column in range(2 * n + 1, 3 * n + 1):
             self.linear_system[row, column] = -self.dt * self.v * self.lambda_eff
+            self.linear_system[row, column] = 0 # debugging
+
             row += 1
 
         # precursor equation precursor terms
 
         position = 1
-        self.linear_system[2*n + 1, 2*n + 1] = 1 # boundary condition
+        self.linear_system[2*n + 1, 2*n + 1] = 1 + self.dnpc_v_edge[0] * self.dt / self.dx + self.dt \
+                                               * self.lambda_eff # boundary condition
         for index in range(2*n + 2, 3 * n + 1):
             self.linear_system[index, index - 1] = -self.dnpc_velocity[position - 1] * self.dt / self.dx
             self.linear_system[index, index] = 1 + self.dnpc_velocity[position] * self.dt / self.dx + self.dt \
                                                * self.lambda_eff
+            # might need to evaluate fluxes on cell boundaries, not at cell centers
+            self.linear_system[index, index - 1] = -self.dnpc_v_edge[position] * self.dt / self.dx
+            self.linear_system[index, index] = 1 + self.dnpc_v_edge[position+1] * self.dt / self.dx + self.dt \
+                                               * self.lambda_eff
+            #self.linear_system[index, index - 1] = 0 # debugging
+            #self.linear_system[index, index] = 1 # debugging
             position += 1
 
+        #
+        # self.linear_system[3*n, 3*n - 1] = 0 #debug
+        #self.linear_system[3*n, 3*n] = 1 #debug
         # RHS
 
         self.calc_q_z_mms(t)
         self.calc_q_q_mms(t)
         self.calc_q_p_mms(t)
+
+        #for position in xrange(self.core_mesh_length): # debugging
+        #    self.delayed_neutron_precursor_concentration[position, 1] = self.C_0_mms * numpy.sin(position * self.dx + self.dx/2.0)*numpy.exp(t)
 
         self.linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1] + self.v * self.dt * self.q_z_mms[:, 0])
         self.linear_system_solution[n:2*n+1, 1] = numpy.array(self.current[:, 1] + self.v * self.dt * self.q_q_mms[:, 0])
@@ -449,17 +468,24 @@ class QuasiDiffusionPrecursorConcentration:
         #debugging self.linear_system_solution[2*n, 1] = 0
         self.linear_system_solution[2*n+1:, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1] \
                                                              + self.dt * self.q_p_mms[:, 0])
+        #self.linear_system_solution[2 * n + 1, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1] \
+                                                                # + self.dt * self.q_p_mms[:, 0])
+
         # boundary condition on precursor concentration
-        self.linear_system_solution[2*n+1, 1] = self.C_0_mms * numpy.sin(self.dx/2) * numpy.exp(t)
+       # self.linear_system_solution[2*n+1, 1] = self.C_0_mms * numpy.sin(self.dx/2) * numpy.exp(t)
+        #self.linear_system_solution[-1, 1] = self.C_0_mms * numpy.sin(numpy.pi-self.dx/2) * numpy.exp(t) # debugging
+
 
         #solve!
         self.linear_system_solution[:, 0] = numpy.linalg.solve(self.linear_system, self.linear_system_solution[:, 1])
 
         #Assign fluxes!
         self.flux[:, 0] = self.linear_system_solution[0:n, 0]
-        self.current[:, 0] = self.linear_system_solution[n:2*n +1, 0]
+        self.current[:, 0] = self.linear_system_solution[n:2*n + 1, 0]
         self.delayed_neutron_precursor_concentration[:, 0] = self.linear_system_solution[2*n + 1:, 0]
 
+    """Solve the modified transient problem by taking the Eddington factors from a StepCharacteristic solve and putting them
+     into a linear system of equations. Includes MMS source terms."""
     def solve_transient_mms(self, steps):
 
         # Initialize arrays to store transient solutions
@@ -471,7 +497,7 @@ class QuasiDiffusionPrecursorConcentration:
 
         # Initial flux and precursor concentration
         for position in xrange(self.core_mesh_length):
-            self.flux[position, 1] = self.psi_0_mms * numpy.sin(position*self.dx + self.dx/2.0)
+            self.flux[position, 1] = 2.0*self.psi_0_mms * numpy.sin(position*self.dx + self.dx/2.0)
             self.delayed_neutron_precursor_concentration[position, 1] = self.C_0_mms * numpy.sin(position * self.dx + self.dx/2.0)
 
         self.current[:, 1] = numpy.zeros(self.core_mesh_length+1)
@@ -483,9 +509,9 @@ class QuasiDiffusionPrecursorConcentration:
         #self.update_variables(test_moc.flux[:, 1], test_moc.current, test_moc.eddington_factors,
          #                          test_moc.delayed_neutron_precursor_concentration)
 
+        t = self.dt
         for iteration in xrange(steps):
             converged = False
-            t = self.dt
             while not converged:
                 #self.update_eddington(test_moc.eddington_factors)
                 self.eddington_factors = (1.0/3.0) * numpy.array(numpy.ones(self.core_mesh_length, dtype=numpy.float64))
@@ -574,7 +600,7 @@ class QuasiDiffusionPrecursorConcentration:
     def calc_q_q_mms(self, t):
 
         for position in xrange(self.core_mesh_length+1):
-            self.q_q_mms[position, 0] = (1.0 / 3.0) * numpy.cos(self.dx * position) * numpy.exp(t)
+            self.q_q_mms[position, 0] = (1.0 / 3.0) * self.psi_0_mms * numpy.cos(self.dx * position) * numpy.exp(t)
 
         self.q_q_mms[0, 0] = 0.0 #So as to not disturb boundary conditions
         self.q_q_mms[-1,0] = 0.0
@@ -584,11 +610,12 @@ class QuasiDiffusionPrecursorConcentration:
         for position in xrange(self.core_mesh_length):
             A = self.C_0_mms*(1+self.lambda_eff-self.a) - 2.0 * self.beta * self.nu[self.material[position]]\
                * self.sig_f[self.material[position]] * self.psi_0_mms
-            B = self.a*(numpy.pi - self.dx*position - self.dx/2.0)*self.C_0_mms
+            B = self.a*(2*numpy.pi - self.dx*position - self.dx/2.0)*self.C_0_mms
             self.q_p_mms[position, 0] = A * numpy.sin(self.dx * position + self.dx/2.0) * numpy.exp(t)\
                                      + B * numpy.cos(self.dx * position + self.dx/2.0) * numpy.exp(t)
+        #self.q_p_mms[0, 0] = 0.0 #So as not to disturb boundary conditions
 
 if __name__ == "__main__":
 
     test = QuasiDiffusionPrecursorConcentration("mms_input.yaml")  # test for initialization
-    test.solve_transient_mms(5)
+    test.solve_transient_mms(150)
