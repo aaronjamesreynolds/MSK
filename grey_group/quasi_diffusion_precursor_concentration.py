@@ -51,9 +51,8 @@ class QuasiDiffusionPrecursorConcentration:
         self.delayed_neutron_precursor_concentration = input_data.data.dnp_concentration*numpy.ones((self.core_mesh_length, 2), dtype=numpy.float64)
         self.delayed_neutron_precursor_concentration[:, 0] = numpy.ones(self.core_mesh_length)
         self.dnpc_velocity = 10 * numpy.ones(self.core_mesh_length, dtype=numpy.float64)
-        self.dnpc_velocity = numpy.linspace(input_data.data.dnp_velocity_lhs, input_data.data.dnp_velocity_rhs, self.core_mesh_length)
-        self.dnpc_v_edge = numpy.linspace(8000, 4000, self.core_mesh_length + 1)
-
+        self.dnpc_v_edge = numpy.linspace(input_data.data.dnp_velocity_lhs, input_data.data.dnp_velocity_rhs, self.core_mesh_length + 1)
+        self.dnpc_velocity = numpy.linspace(input_data.data.dnp_velocity_lhs*(1.0-1.0/(2.0*self.core_mesh_length)), input_data.data.dnp_velocity_rhs*(1.0+1.0/(2.0*self.core_mesh_length)), self.core_mesh_length)
 
 
         # Set initial values
@@ -197,6 +196,7 @@ class QuasiDiffusionPrecursorConcentration:
         # BUILD THE LINEAR SYSTEM AND THE SOLUTION WILL COME
         # LHS
         n = self.core_mesh_length
+        courant = self.dt*self.v/self.dx
 
         # zeroth moment flux terms
         for position in range(n):
@@ -206,8 +206,6 @@ class QuasiDiffusionPrecursorConcentration:
             zeta = 1 + self.v * self.dt * (sig_a - (1 - self.beta) * self.nu[self.material[position]] *
                                            self.sig_f[self.material[position]])
             self.linear_system[position, position] = zeta
-
-        courant = self.dt*self.v/self.dx
 
         # qd flux terms
 
@@ -246,7 +244,9 @@ class QuasiDiffusionPrecursorConcentration:
         row = 0
         for column in range(2 * n + 1, 3 * n + 1):
             self.linear_system[row, column] = -self.dt * self.v * self.lambda_eff
+            # note: removing self.dt in line above makes effects of precursors more obvious, but it is not correct
             row += 1
+
 
         # precursor equation precursor terms
 
@@ -321,7 +321,7 @@ class QuasiDiffusionPrecursorConcentration:
                     # Calculate difference between previous and present alpha
                     alpha_diff = abs(test_moc.alpha - test_moc.alpha_old)
 
-                    if numpy.max(alpha_diff/abs(test_moc.alpha)) < 1E-4:
+                    if numpy.max(alpha_diff) < 1E-2:
                         converged = True
                         test_moc.flux_t = self.flux[:, 0]
 
@@ -388,18 +388,15 @@ class QuasiDiffusionPrecursorConcentration:
             self.linear_system[position, position] = zeta
 
         # qd flux terms
-
         column = 0
         for row in range(n + 1, 2*n):
             self.linear_system[row, column] = -courant*self.eddington_factors[column]
             self.linear_system[row, column + 1] = courant*self.eddington_factors[column+1]
-            self.linear_system[row, column] = 0 # debugging
-            self.linear_system[row, column + 1] = 0 # debugging
             column += 1
 
         # precursor equation flux terms
-        column = 1
-        for row in range(2*n + 2, 3*n+1):
+        column = 0
+        for row in range(2*n + 1, 3*n+1):
             self.linear_system[row, column] = -self.dt*self.beta*self.nu[self.material[column]]\
                                               *self.sig_f[self.material[column]]
             column += 1
@@ -408,9 +405,7 @@ class QuasiDiffusionPrecursorConcentration:
         row = 0
         for column in range(n, 2*n):
             self.linear_system[row, column] = -courant
-            #self.linear_system[row, column] = 0 # debug
             self.linear_system[row, column + 1] = courant
-            #self.linear_system[row, column + 1] = 0 # debug
             row += 1
 
         # qd current terms
@@ -425,16 +420,12 @@ class QuasiDiffusionPrecursorConcentration:
         self.linear_system[2*n, 2*n] = 1 # boundary condition
 
         # zeroth moment precursor terms
-
         row = 0
         for column in range(2 * n + 1, 3 * n + 1):
             self.linear_system[row, column] = -self.dt * self.v * self.lambda_eff
-            self.linear_system[row, column] = 0 # debugging
-
             row += 1
 
         # precursor equation precursor terms
-
         position = 1
         self.linear_system[2*n + 1, 2*n + 1] = 1 + self.dnpc_v_edge[0] * self.dt / self.dx + self.dt \
                                                * self.lambda_eff # boundary condition
@@ -446,40 +437,22 @@ class QuasiDiffusionPrecursorConcentration:
             self.linear_system[index, index - 1] = -self.dnpc_v_edge[position] * self.dt / self.dx
             self.linear_system[index, index] = 1 + self.dnpc_v_edge[position+1] * self.dt / self.dx + self.dt \
                                                * self.lambda_eff
-            #self.linear_system[index, index - 1] = 0 # debugging
-            #self.linear_system[index, index] = 1 # debugging
             position += 1
 
-        #
-        # self.linear_system[3*n, 3*n - 1] = 0 #debug
-        #self.linear_system[3*n, 3*n] = 1 #debug
-        # RHS
 
+        # RHS
         self.calc_q_z_mms(t)
         self.calc_q_q_mms(t)
         self.calc_q_p_mms(t)
 
-        #for position in xrange(self.core_mesh_length): # debugging
-        #    self.delayed_neutron_precursor_concentration[position, 1] = self.C_0_mms * numpy.sin(position * self.dx + self.dx/2.0)*numpy.exp(t)
-
         self.linear_system_solution[0:n, 1] = numpy.array(self.flux[:, 1] + self.v * self.dt * self.q_z_mms[:, 0])
         self.linear_system_solution[n:2*n+1, 1] = numpy.array(self.current[:, 1] + self.v * self.dt * self.q_q_mms[:, 0])
-        #debugging self.linear_system_solution[n, 1] = 0
-        #debugging self.linear_system_solution[2*n, 1] = 0
         self.linear_system_solution[2*n+1:, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1] \
                                                              + self.dt * self.q_p_mms[:, 0])
-        #self.linear_system_solution[2 * n + 1, 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1] \
-                                                                # + self.dt * self.q_p_mms[:, 0])
-
-        # boundary condition on precursor concentration
-       # self.linear_system_solution[2*n+1, 1] = self.C_0_mms * numpy.sin(self.dx/2) * numpy.exp(t)
-        #self.linear_system_solution[-1, 1] = self.C_0_mms * numpy.sin(numpy.pi-self.dx/2) * numpy.exp(t) # debugging
-
-
         #solve!
         self.linear_system_solution[:, 0] = numpy.linalg.solve(self.linear_system, self.linear_system_solution[:, 1])
 
-        #Assign fluxes!
+        #Assign solutions!
         self.flux[:, 0] = self.linear_system_solution[0:n, 0]
         self.current[:, 0] = self.linear_system_solution[n:2*n + 1, 0]
         self.delayed_neutron_precursor_concentration[:, 0] = self.linear_system_solution[2*n + 1:, 0]
@@ -556,37 +529,47 @@ class QuasiDiffusionPrecursorConcentration:
             flux_t[:, iteration + 1] = self.flux[:, 0]
             precursor_t[:, iteration + 1] = self.delayed_neutron_precursor_concentration[:, 0]
 
-        # plot flux at each time step
-        x = numpy.arange(0, self.core_mesh_length)
-        ax = plt.subplot(111)
-        for iteration in xrange(steps + 1):
-            ax.plot(x, flux_t[:, iteration], label= "t = " + str(self.dt * iteration))
-        ax.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Flux [s^-1 cm^-2]')
-        plt.title('Grey Group: Neutron Flux')
+        # # plot flux at each time step
+        # x = numpy.arange(0, self.core_mesh_length)
+        # ax = plt.subplot(111)
+        # for iteration in xrange(steps + 1):
+        #     ax.plot(x, flux_t[:, iteration], label= "t = " + str(self.dt * iteration))
+        # ax.grid(True)
+        # plt.xlabel('Position [cm]')
+        # plt.ylabel('Flux [s^-1 cm^-2]')
+        # plt.title('Grey Group: Neutron Flux')
+        #
+        # # Shrink current axis by 20%
+        # box = ax.get_position()
+        # ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # # Put a legend to the right of the current axis
+        # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.show()
+        #
+        # # plot precursor concentration at each time step
+        # ax = plt.subplot(111)
+        # for iteration in xrange(steps + 1):
+        #     ax.plot(x, precursor_t[:, iteration], label="t = " + str(self.dt * iteration))
+        # ax.grid(True)
+        # plt.xlabel('Position [cm]')
+        # plt.ylabel('Concentration [cm^-3]')
+        # plt.title('Grey Group: Precursor Concentration')
+        # # Shrink current axis by 20%
+        # box = ax.get_position()
+        # ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # # Put a legend to the right of the current axis
+        # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.show()
 
-        # Shrink current axis by 20%
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
+        #save final curves to csv files
+        dnpc_filename = "output/precursor_concentration_N=" + str(self.core_mesh_length) + "_dt=" + str(self.dt) + ".csv"
+        flux_filename = "output/flux_N=" + str(self.core_mesh_length) + "_dt=" + str(self.dt) + ".csv"
+        current_filename = "output/current_N=" + str(self.core_mesh_length) + "_dt=" + str(self.dt) + ".csv"
+        numpy.savetxt(dnpc_filename, self.delayed_neutron_precursor_concentration[:, 0], delimiter=",")
+        numpy.savetxt(flux_filename, self.flux[:, 0], delimiter=",")
+        numpy.savetxt(current_filename, self.current[:, 0], delimiter=",")
 
-        # plot precursor concentration at each time step
-        ax = plt.subplot(111)
-        for iteration in xrange(steps + 1):
-            ax.plot(x, precursor_t[:, iteration], label="t = " + str(self.dt * iteration))
-        ax.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Concentration [cm^-3]')
-        plt.title('Grey Group: Precursor Concentration')
-        # Shrink current axis by 20%
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
+
 
     def calc_q_z_mms(self, t):
 
@@ -600,9 +583,10 @@ class QuasiDiffusionPrecursorConcentration:
     def calc_q_q_mms(self, t):
 
         for position in xrange(self.core_mesh_length+1):
-            self.q_q_mms[position, 0] = (1.0 / 3.0) * self.psi_0_mms * numpy.cos(self.dx * position) * numpy.exp(t)
+            self.q_q_mms[position, 0] = (2.0 / 3.0) * self.psi_0_mms * numpy.cos(self.dx * position) * numpy.exp(t)
 
-        self.q_q_mms[0, 0] = 0.0 #So as to not disturb boundary conditions
+        # accomodate initial conditions
+        self.q_q_mms[0, 0] = 0.0
         self.q_q_mms[-1,0] = 0.0
 
     def calc_q_p_mms(self, t):
@@ -610,12 +594,27 @@ class QuasiDiffusionPrecursorConcentration:
         for position in xrange(self.core_mesh_length):
             A = self.C_0_mms*(1+self.lambda_eff-self.a) - 2.0 * self.beta * self.nu[self.material[position]]\
                * self.sig_f[self.material[position]] * self.psi_0_mms
-            B = self.a*(2*numpy.pi - self.dx*position - self.dx/2.0)*self.C_0_mms
+            B = self.a*(2.0*numpy.pi - self.dx*position - self.dx/2.0)*self.C_0_mms
+            B = self.dnpc_velocity[position] * self.C_0_mms
             self.q_p_mms[position, 0] = A * numpy.sin(self.dx * position + self.dx/2.0) * numpy.exp(t)\
                                      + B * numpy.cos(self.dx * position + self.dx/2.0) * numpy.exp(t)
-        #self.q_p_mms[0, 0] = 0.0 #So as not to disturb boundary conditions
 
 if __name__ == "__main__":
 
-    test = QuasiDiffusionPrecursorConcentration("mms_input.yaml")  # test for initialization
-    test.solve_transient_mms(150)
+    #test = QuasiDiffusionPrecursorConcentration("mms_input.yaml")  # test for initialization
+    #test.solve_transient_mms(100)
+
+    mms1 = QuasiDiffusionPrecursorConcentration("mms_inputs/n50dt01.yaml")  # test for initialization
+    mms1.solve_transient_mms(100)
+
+    mms2 = QuasiDiffusionPrecursorConcentration("mms_inputs/n100dt005.yaml")  # test for initialization
+    mms2.solve_transient_mms(200)
+
+    mms3 = QuasiDiffusionPrecursorConcentration("mms_inputs/n200dt0025.yaml")  # test for initialization
+    mms3.solve_transient_mms(400)
+
+    mms4 = QuasiDiffusionPrecursorConcentration("mms_inputs/n500dt001.yaml")  # test for initialization
+    mms4.solve_transient_mms(1000)
+
+    mms5 = QuasiDiffusionPrecursorConcentration("mms_inputs/n1000dt0005.yaml")  # test for initialization
+    mms5.solve_transient_mms(2000)
