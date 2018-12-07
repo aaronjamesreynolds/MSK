@@ -577,8 +577,6 @@ class QuasiDiffusionPrecursorConcentration:
         # Record initial conditions
         flux_t[:, 0] = numpy.array(self.flux[:, 1])
         precursor_t[:, 0] = numpy.array(self.delayed_neutron_precursor_concentration[:, 1])
-        # set Eddington factors to MMS values
-        #self.eddington_factors = (1.0 / 3.0) * numpy.array(numpy.ones(self.core_mesh_length, dtype=numpy.float64))
 
         t = self.dt
         for iteration in xrange(steps):
@@ -618,12 +616,12 @@ class QuasiDiffusionPrecursorConcentration:
                         t = t + self.dt
 
                     else:
-                        test_moc.solve_mms(t, False, True)
+                        test_moc.solve_mms(t, False, False)
 
                 else:
                     test_moc.update_variables(self.flux[:, 0],
                                               self.delayed_neutron_precursor_concentration[:, 0])
-                    test_moc.solve_mms(t, False, True)
+                    test_moc.solve_mms(t, False, False)
 
             self.flux[:, 1] = numpy.array(self.flux[:, 0])
             self.current[:, 1] = numpy.array(self.current[:, 0])
@@ -633,37 +631,37 @@ class QuasiDiffusionPrecursorConcentration:
             flux_t[:, iteration + 1] = numpy.array(self.flux[:, 0])
             precursor_t[:, iteration + 1] = numpy.array(self.delayed_neutron_precursor_concentration[:, 0])
 
-        # plot flux at each time step
-        x = numpy.arange(0, self.core_mesh_length)
-        ax = plt.subplot(111)
-        for iteration in xrange(steps + 1):
-            ax.plot(x, flux_t[:, iteration], label= "t = " + str(self.dt * iteration))
-        ax.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Flux [s^-1 cm^-2]')
-        plt.title('Grey Group: Neutron Flux')
-
-        # Shrink current axis by 20%
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
-
-        # plot precursor concentration at each time step
-        ax = plt.subplot(111)
-        for iteration in xrange(steps + 1):
-            ax.plot(x, precursor_t[:, iteration], label="t = " + str(self.dt * iteration))
-        ax.grid(True)
-        plt.xlabel('Position [cm]')
-        plt.ylabel('Concentration [cm^-3]')
-        plt.title('Grey Group: Precursor Concentration')
-        # Shrink current axis by 20%
-        box = ax.get_position()
-        ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-        # Put a legend to the right of the current axis
-        ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-        plt.show()
+        # # plot flux at each time step
+        # x = numpy.arange(0, self.core_mesh_length)
+        # ax = plt.subplot(111)
+        # for iteration in xrange(steps + 1):
+        #     ax.plot(x, flux_t[:, iteration], label= "t = " + str(self.dt * iteration))
+        # ax.grid(True)
+        # plt.xlabel('Position [cm]')
+        # plt.ylabel('Flux [s^-1 cm^-2]')
+        # plt.title('Grey Group: Neutron Flux')
+        #
+        # # Shrink current axis by 20%
+        # box = ax.get_position()
+        # ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # # Put a legend to the right of the current axis
+        # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.show()
+        #
+        # # plot precursor concentration at each time step
+        # ax = plt.subplot(111)
+        # for iteration in xrange(steps + 1):
+        #     ax.plot(x, precursor_t[:, iteration], label="t = " + str(self.dt * iteration))
+        # ax.grid(True)
+        # plt.xlabel('Position [cm]')
+        # plt.ylabel('Concentration [cm^-3]')
+        # plt.title('Grey Group: Precursor Concentration')
+        # # Shrink current axis by 20%
+        # box = ax.get_position()
+        # ax.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+        # # Put a legend to the right of the current axis
+        # ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        # plt.show()
 
         #save final curves to csv files
         dnpc_filename = "output/precursor_concentration_N=" + str(self.core_mesh_length) + "_dt=" + str(self.dt) + ".csv"
@@ -730,9 +728,8 @@ if __name__ == "__main__":
     #mms1.solve_transient_mms_coupled(10)
 
 
-    #
-    test = QuasiDiffusionPrecursorConcentration("mms_input.yaml")  # test for initialization
-    test.solve_transient_mms_coupled(100)
+    #test = QuasiDiffusionPrecursorConcentration("mms_input.yaml")  # test for initialization
+    #test.solve_transient_mms_coupled(100)
 
     mms1 = QuasiDiffusionPrecursorConcentration("mms_inputs/n50dt01.yaml")  # test for initialization
     mms1.solve_transient_mms_coupled(100)

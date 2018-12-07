@@ -321,27 +321,11 @@ class StepCharacteristic(object):
 
     """Solver used in conjunction with grey_group solver for mms study. Performs a single transport sweep."""
     def solve_mms(self, t, single_step=False, verbose=True):
-        print "Performing method of characterisitics solve..."
-
-        # for position in xrange(self.core_mesh_length):
-        #     self.flux_t[position] = 2.0 * self.psi_0_mms * numpy.sin(position * self.dx + self.dx / 2.0)
-        #     self.flux[position, 1] = 2.0 * self.psi_0_mms * numpy.sin(position * self.dx + self.dx / 2.0)*numpy.exp(t)
-        #     self.delayed_neutron_precursor_concentration[position] = self.C_0_mms * numpy.sin(position * self.dx + self.dx/2.0)*numpy.exp(t)
-        #
-        # for angle in xrange(len(self.ab)):
-        #     for position in xrange(self.core_mesh_length):
-        #         self.angular_flux_center[position, angle] = self.psi_0_mms * numpy.sin(position * self.dx + self.dx / 2.0)*numpy.exp(t)  # initialize center angular flux
-        #         #self.angular_flux_edge[position, angle] = 0# initialize edge angular flux
-        #
-        # for angle in xrange(len(self.ab)):
-        #     for position in xrange(self.core_mesh_length+1):
-        #         self.angular_flux_edge[position, angle] = self.psi_0_mms * numpy.sin(position * self.dx)*numpy.exp(t)# initialize edge angular flux
-        #         #self.angular_flux_edge[position, angle] = 0# initialize edge angular flux
-
+        #print "Performing method of characterisitics solve..."
 
         self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
         self.flux_iterations = 0
-    #while not self.converged:
+
         print "----------------DEBUG----------------------"
         if verbose:
             print "Iteration: {}".format(self.flux_iterations)
