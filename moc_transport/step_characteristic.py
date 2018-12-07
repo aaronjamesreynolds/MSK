@@ -74,7 +74,7 @@ class StepCharacteristic(object):
         # Problem geometry parameters
         self.groups = 1  # energy groups in problem
         self.core_mesh_length = input_data.data.cells  # number of intervals
-        self.dmu = 2 / len(self.ab)  # discretization in angle
+        self.dmu = 2.0 / len(self.ab)  # discretization in angle
 
         # Alpha approximation parameters
         self.alpha = input_data.data.alpha * numpy.ones(self.core_mesh_length, dtype=numpy.float64) # describes change in scalar flux between time steps
@@ -88,7 +88,7 @@ class StepCharacteristic(object):
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux = 1.0 * numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux = numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
         self.flux_t = numpy.ones((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = 0 * numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = 1*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
@@ -107,7 +107,6 @@ class StepCharacteristic(object):
         self.converged = False
         self.normalized = False
         self.first_step = True
-        self.multiplier = 1
         self.rho_convergence = 0
         self.rho_alpha_convergence = 0
 
@@ -119,6 +118,13 @@ class StepCharacteristic(object):
                         self.angular_flux_edge[j, i] = 1
                     elif i + 1 > len(self.ab) / 2 and j == 0:
                         self.angular_flux_edge[j, i] = 1
+
+        # mms parameters
+        self.C_0_mms = 1.0
+        self.psi_0_mms = 1.0
+        self.q_mms = numpy.zeros((len(self.ab), self.core_mesh_length), dtype=numpy.float64)
+        self.q_mms_part = numpy.zeros((len(self.ab), self.core_mesh_length), dtype=numpy.float64)
+        self.q_stand_part = numpy.zeros((len(self.ab), self.core_mesh_length), dtype=numpy.float64)
 
     """ With given angular fluxes at the center, calculate the scalar flux using a quadrature set. """
     def calculate_scalar_flux(self):
@@ -135,7 +141,6 @@ class StepCharacteristic(object):
                 self.edge_flux[i] = self.edge_flux[i] + self.weights[x] * self.angular_flux_edge[i, x]
 
     """ With given angular fluxes at the edge, calculate the current using a quadrature set. """
-
     def calculate_current(self):
 
         self.current = numpy.zeros(self.core_mesh_length + 1, dtype=numpy.float64)
@@ -175,10 +180,7 @@ class StepCharacteristic(object):
             self.alpha[i] = numpy.log(self.flux[i, 1] / self.flux_t[i]) / self.dt
 
     """ Propagate angular flux boundary conditions across the problem."""
-
     def flux_iteration(self):
-
-        self.calculate_source()
 
         for z in xrange(5, 10):
             for i in xrange(self.core_mesh_length):
@@ -212,8 +214,41 @@ class StepCharacteristic(object):
 
         self.calculate_scalar_flux()
 
-    """Calculate the source due to fission, scattering, and delayed neutron precursor decay."""
+    def flux_iteration_mms(self):
 
+        for z in xrange(5, 10):
+            for i in xrange(self.core_mesh_length):
+                xi = (self.sig_t[self.material[i]] + self.alpha[i] / self.v) / self.ab[z]  # integrating factor
+
+                if xi * numpy.abs(self.ab[z]) < 10 ** -4:
+                    xi = 10 ** -4 / numpy.abs(self.ab[z])
+
+                self.angular_flux_edge[i + 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
+                                                   + (self.q_mms[z,i] / (self.ab[z] * xi)) * (1 - numpy.exp(-xi * self.dx))
+
+                self.angular_flux_center[i, z] = (1 / (self.dx * xi)) * (self.q_mms[z,i] * self.dx / (self.ab[z])
+                                                                         + self.angular_flux_edge[i, z]
+                                                                         - self.angular_flux_edge[i + 1, z])
+        for z in xrange(0, 5):
+            for i in range(self.core_mesh_length, 0, -1):
+                xi = (self.sig_t[self.material[i - 1]] + self.alpha[i - i] / self.v) / numpy.abs(
+                    self.ab[z])  # integrating factor
+
+                if xi * numpy.abs(self.ab[z]) < 10 ** -4:
+                   xi = 10 ** -4 / numpy.abs(self.ab[z])
+
+                self.angular_flux_edge[i - 1, z] = self.angular_flux_edge[i, z] * numpy.exp(-xi * self.dx) \
+                                                   + (self.q_mms[z,i - 1] / ( numpy.abs(self.ab[z]) * xi)) * (
+                                                           1 - numpy.exp(-xi * self.dx))
+
+                self.angular_flux_center[i - 1, z] = (1 / (self.dx * xi)) * (
+                        self.q_mms[z,i - 1] * self.dx / (numpy.abs(self.ab[z]))
+                        + self.angular_flux_edge[i, z]
+                        - self.angular_flux_edge[i - 1, z])
+
+        self.calculate_scalar_flux()
+
+    """Calculate the source due to fission, scattering, and delayed neutron precursor decay."""
     def calculate_source(self):
 
         self.q_old = numpy.array(self.q)
@@ -221,8 +256,35 @@ class StepCharacteristic(object):
         for i in xrange(self.core_mesh_length):
 
             self.q[i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
-                 + (1 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
-                 + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2  # source term
+                 + (1.0 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
+                 + self.lambda_eff * self.delayed_neutron_precursor_concentration[i])/2.0  # source term
+
+    """Calculate the source due to fission, scattering, delayed neutron precursor decay, and mms source term."""
+    def calculate_source_mms(self, t):
+
+        for j, mu in enumerate(self.ab):
+
+            for i in xrange(self.core_mesh_length):
+
+                sig_a = self.sig_t[self.material[i]] - self.sig_s[self.material[i]]
+                fission = (1.0 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]]
+                mms_term_1 = self.psi_0_mms * (1.0 / self.v + sig_a - fission) - self.lambda_eff * self.C_0_mms / 2.0
+                mms_term_2 = mu * self.psi_0_mms
+                mms_source_term = numpy.sin(self.dx*i + self.dx/2.0) * numpy.exp(t) * mms_term_1 \
+                                  + numpy.cos(self.dx*i + self.dx/2.0) * numpy.exp(t) * mms_term_2
+                #integral average
+                mms_source_term = (1 / self.dx) * (numpy.cos(self.dx * i) - numpy.cos(self.dx * (i + 1))) * numpy.exp(
+                    t) * mms_term_1 \
+                                  + (1 / self.dx) * (numpy.sin(self.dx * (i + 1)) - numpy.sin(self.dx * i)) * numpy.exp(
+                    t) * mms_term_2
+                # combined source term
+                self.q_mms_part[j, i] = mms_source_term
+                self.q_stand_part[j, i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
+                             + (1.0 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
+                             + self.lambda_eff * self.delayed_neutron_precursor_concentration[i]) / 2.0
+                self.q_mms[j, i] = (self.sig_s[self.material[i]] * self.flux[i, 1]
+                             + (1.0 - self.beta) * self.nu[self.material[i]] * self.sig_f[self.material[i]] * self.flux[i, 1]
+                             + self.lambda_eff * self.delayed_neutron_precursor_concentration[i]) / 2.0 + mms_source_term
 
     """Solver used in conjunction with grey_group solver. Performs a single transport sweep."""
     def solve(self, single_step=False, verbose=True):
@@ -237,6 +299,7 @@ class StepCharacteristic(object):
             print "Flux: {}".format(self.flux[:, 1])
 
         self.flux_iterations += 1
+        self.calculate_source()
         self.flux_iteration()  # do a flux iteration
         self.calculate_eddington_factors()
         print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
@@ -256,6 +319,57 @@ class StepCharacteristic(object):
             self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
             self.iterate_boundary_condition()
 
+    """Solver used in conjunction with grey_group solver for mms study. Performs a single transport sweep."""
+    def solve_mms(self, t, single_step=False, verbose=True):
+        print "Performing method of characterisitics solve..."
+
+        # for position in xrange(self.core_mesh_length):
+        #     self.flux_t[position] = 2.0 * self.psi_0_mms * numpy.sin(position * self.dx + self.dx / 2.0)
+        #     self.flux[position, 1] = 2.0 * self.psi_0_mms * numpy.sin(position * self.dx + self.dx / 2.0)*numpy.exp(t)
+        #     self.delayed_neutron_precursor_concentration[position] = self.C_0_mms * numpy.sin(position * self.dx + self.dx/2.0)*numpy.exp(t)
+        #
+        # for angle in xrange(len(self.ab)):
+        #     for position in xrange(self.core_mesh_length):
+        #         self.angular_flux_center[position, angle] = self.psi_0_mms * numpy.sin(position * self.dx + self.dx / 2.0)*numpy.exp(t)  # initialize center angular flux
+        #         #self.angular_flux_edge[position, angle] = 0# initialize edge angular flux
+        #
+        # for angle in xrange(len(self.ab)):
+        #     for position in xrange(self.core_mesh_length+1):
+        #         self.angular_flux_edge[position, angle] = self.psi_0_mms * numpy.sin(position * self.dx)*numpy.exp(t)# initialize edge angular flux
+        #         #self.angular_flux_edge[position, angle] = 0# initialize edge angular flux
+
+
+        self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+        self.flux_iterations = 0
+    #while not self.converged:
+        print "----------------DEBUG----------------------"
+        if verbose:
+            print "Iteration: {}".format(self.flux_iterations)
+            print "Alpha: {}".format(self.alpha)
+            print "Flux: {}".format(self.flux[:, 1])
+
+        self.flux_iterations += 1
+        self.calculate_source_mms(t)
+        self.flux_iteration_mms()  # do a flux iteration
+        self.calculate_eddington_factors()
+        print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
+        if verbose:
+            print "Flux: Absolute relative difference: {}".format(
+                (abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))
+            print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
+        print "-------------------------------------------"
+
+        if numpy.max(abs((self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4:
+
+            self.converged = True
+            self.flux_t = self.flux[:, 0]
+            print('Converged!')
+
+        else:
+            self.flux[:, 1] = self.flux[:, 0]
+            self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
+            self.q_mms = numpy.zeros((len(self.ab), self.core_mesh_length), dtype=numpy.float64)
+            self.iterate_boundary_condition()
 
     """ Update neutron flux, neutron current, Eddington factors, and delayed neutron precursor concentration variables. """
     def update_variables(self, _flux, _delayed_neutron_precursor_concentration):
@@ -304,7 +418,7 @@ class StepCharacteristic(object):
 if __name__ == "__main__":
 
     test = StepCharacteristic("test_input.yaml")
-    test.solve(False)
+    test.solve_mms(False)
     test.results()
 
 
