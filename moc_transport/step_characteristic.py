@@ -88,7 +88,7 @@ class StepCharacteristic(object):
         self.q_old = numpy.ones(self.core_mesh_length, dtype=numpy.float64)
 
         # Set initial values
-        self.flux = numpy.ones((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
+        self.flux = numpy.zeros((self.core_mesh_length, 3), dtype=numpy.float64)  # initialize flux. (position, 0:new, 1:old)
         self.flux_t = numpy.ones((self.core_mesh_length), dtype=numpy.float64) # assume ten time steps to start
         self.edge_flux = 0 * numpy.ones(self.core_mesh_length + 1, dtype=numpy.float64)
         self.angular_flux_edge = 1*numpy.ones((self.core_mesh_length + 1, len(self.ab)),
@@ -326,7 +326,7 @@ class StepCharacteristic(object):
         self.flux[:, 0] = numpy.zeros(self.core_mesh_length, dtype=numpy.float64)  # reset new_flux
         self.flux_iterations = 0
 
-        print "----------------DEBUG----------------------"
+        #print "----------------DEBUG----------------------"
         if verbose:
             print "Iteration: {}".format(self.flux_iterations)
             print "Alpha: {}".format(self.alpha)
@@ -336,12 +336,12 @@ class StepCharacteristic(object):
         self.calculate_source_mms(t)
         self.flux_iteration_mms()  # do a flux iteration
         self.calculate_eddington_factors()
-        print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
+        #print "Infinite norm: {}".format(numpy.max((abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])))
         if verbose:
             print "Flux: Absolute relative difference: {}".format(
                 (abs(self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0]))
             print "Source: Absolute relative difference: {}".format((abs(self.q - self.q_old)))
-        print "-------------------------------------------"
+        #print "-------------------------------------------"
 
         if numpy.max(abs((self.flux[:, 0] - self.flux[:, 1]) / self.flux[:, 0])) < 1E-4:
 
